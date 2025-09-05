@@ -1,0 +1,3 @@
+raw-datasets/*.csv
+timeseries/*/*.csv
+__pycache__
