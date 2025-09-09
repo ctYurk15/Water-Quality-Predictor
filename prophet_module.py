@@ -1,30 +1,27 @@
 """
 prophet_module
 --------------
-Reusable module for batch forecasting with Prophet, now with date-range controls.
-
-New args:
-  - train_start, train_end: limit the history used to train Prophet
-  - fcst_start, fcst_end:   limit the forecast window; periods auto-derived from fcst_end
-
-Date strings are parsed with pandas.to_datetime (e.g., "2007-01-01").
+Reusable module for batch forecasting with Prophet, with date-range controls
+and portable saving to a top-level `forecasts/<forecast_name>/` folder.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-
 import json
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 
 try:
     from prophet import Prophet
 except Exception as e:
     raise RuntimeError("Prophet is required. Install with: pip install prophet pandas") from e
 
+# Where to save by default (sibling to this module)
+BASE_FORECASTS_DIR = (Path(__file__).resolve().parent / "forecasts").resolve()
 
-# ------------------------- Helpers -------------------------
+# ------------------------- helpers -------------------------
 
 def _parse_dt(x: Optional[object]) -> Optional[pd.Timestamp]:
     if x is None:
@@ -32,9 +29,7 @@ def _parse_dt(x: Optional[object]) -> Optional[pd.Timestamp]:
     dt = pd.to_datetime(x, errors="coerce")
     return None if pd.isna(dt) else dt
 
-
 def _apply_date_range(df: pd.DataFrame, start: Optional[object], end: Optional[object], col: str = "ds") -> pd.DataFrame:
-    """Filter df so start <= df[col] <= end (inclusive)."""
     s = _parse_dt(start)
     e = _parse_dt(end)
     out = df
@@ -44,18 +39,18 @@ def _apply_date_range(df: pd.DataFrame, start: Optional[object], end: Optional[o
         out = out[out[col] <= e]
     return out
 
+def _align_next_step(ts: pd.Timestamp, freq: str) -> pd.Timestamp:
+    return pd.date_range(start=ts, periods=2, freq=freq)[1]
 
-def _steps_between(last_hist: pd.Timestamp, end: pd.Timestamp, freq: str) -> int:
-    """
-    Count how many forward steps of `freq` are needed from last_hist to reach `end`.
-    Examples:
-      last_hist=2007-01-31, end=2007-04-30, freq='M' -> 3 steps (Feb, Mar, Apr)
-    """
-    if end <= last_hist:
+def _ceil_to_freq(ts: pd.Timestamp, freq: str) -> pd.Timestamp:
+    r = pd.date_range(start=ts, periods=2, freq=freq)
+    return r[0] if r[0] == ts else r[1]
+
+def _derive_periods(last_hist: pd.Timestamp, fcst_end: pd.Timestamp, freq: str) -> int:
+    if fcst_end <= last_hist:
         return 0
-    rng = pd.date_range(start=last_hist, end=end, freq=freq, inclusive="neither")
-    return len(rng)
-
+    steps = pd.date_range(start=last_hist, end=fcst_end, freq=freq, inclusive="neither")
+    return max(len(steps), 1)
 
 # ------------------------- IO / filtering -------------------------
 
@@ -70,7 +65,6 @@ def _read_param_csv(timeseries_dir: Path | str, param: str) -> pd.DataFrame:
     df = pd.read_csv(candidate, parse_dates=["ds"])
     return df.sort_values("ds")
 
-
 def _filter_station(df: pd.DataFrame, station_code: Optional[str], station_id: Optional[str]) -> pd.DataFrame:
     out = df
     if station_code is not None and "post_code" in out.columns:
@@ -79,19 +73,13 @@ def _filter_station(df: pd.DataFrame, station_code: Optional[str], station_id: O
         out = out[out["post_id"].astype(str) == str(station_id)]
     return out
 
-
 def _aggregate(df: pd.DataFrame, freq: str, how: str) -> pd.DataFrame:
-    """Resample to a regular frequency with aggregation (mean/median/max/min)."""
     if df.empty:
         return df
     allowed = {"mean", "median", "max", "min"}
     if how not in allowed:
         raise ValueError(f"agg must be one of {allowed}")
-
-    s = (
-        df[["ds", "y"]].dropna().set_index("ds")["y"]  # <- Series resampler avoids rename bug
-        .resample(freq)
-    )
+    s = df[["ds", "y"]].dropna().set_index("ds")["y"].resample(freq)
     agg_map = {
         "mean": s.mean(),
         "median": s.median(),
@@ -101,7 +89,6 @@ def _aggregate(df: pd.DataFrame, freq: str, how: str) -> pd.DataFrame:
     out = agg_map[how].to_frame(name="y").reset_index()
     return out.dropna()
 
-
 def _prepare_series(
     df: pd.DataFrame,
     freq: str,
@@ -109,17 +96,13 @@ def _prepare_series(
     train_start: Optional[object],
     train_end: Optional[object],
 ) -> pd.DataFrame:
-    """Prepare a single series for Prophet: filter by training range, resample, return (ds,y)."""
     if "ds" not in df.columns or "y" not in df.columns:
         raise ValueError("Input DataFrame must have columns ['ds','y']")
-    # 1) apply training date window BEFORE aggregation
     df = _apply_date_range(df, start=train_start, end=train_end, col="ds")
-    # 2) aggregate to regular frequency
     ser = _aggregate(df, freq=freq, how=agg)
     if ser.empty:
         return ser
     return ser[["ds", "y"]].dropna().sort_values("ds").reset_index(drop=True)
-
 
 # ------------------------------- Prophet --------------------------------
 
@@ -133,37 +116,39 @@ def forecast_one(
 ) -> Tuple[Prophet, pd.DataFrame]:
     """
     Train Prophet on `series` (ds,y) and produce forecast.
-
-    If `fcst_end` is provided, `periods` is auto-computed from the last history ds to fcst_end.
-    `fcst_start`/`fcst_end` are applied to the *returned* forecast (filtering rows).
+    If `fcst_end` is given, `periods` is derived from the last training timestamp.
+    Returned forecast is clipped inclusively to [fcst_start, fcst_end] if provided.
     """
     if series.empty:
         raise ValueError("Series is empty after filtering/aggregation")
-    series = series.sort_values("ds")
+    series = series.sort_values("ds").reset_index(drop=True)
     last_hist = series["ds"].max()
 
-    # Auto-derive periods if fcst_end given
-    if fcst_end is not None:
-        end_dt = _parse_dt(fcst_end)
-        if end_dt is None:
-            raise ValueError("fcst_end could not be parsed into a datetime")
-        steps = _steps_between(last_hist, end_dt, freq=freq)
-        periods = max(steps, 0)
+    s = _parse_dt(fcst_start) if fcst_start is not None else None
+    e = _parse_dt(fcst_end) if fcst_end is not None else None
 
+    if s is None and e is not None:
+        s = _align_next_step(last_hist, freq)
+    if e is not None:
+        e = _ceil_to_freq(e, freq)
+    if e is not None:
+        periods = _derive_periods(last_hist, e, freq)
     if periods is None:
-        periods = 0  # no future steps, only history predictions
+        periods = 0
 
     m = Prophet(growth=growth)
     m.fit(series.rename(columns={"ds": "ds", "y": "y"}))
     future = m.make_future_dataframe(periods=int(periods), freq=freq, include_history=True)
     fcst = m.predict(future)
 
-    # Filter returned forecast to requested fcst window (if any)
-    fcst = _apply_date_range(fcst, start=fcst_start, end=fcst_end, col="ds")
+    if s is not None or e is not None:
+        s_eff = s if s is not None else fcst["ds"].min()
+        e_eff = e if e is not None else fcst["ds"].max()
+        fcst = fcst.loc[fcst["ds"].between(s_eff, e_eff, inclusive="both")]
+
     return m, fcst
 
-
-# ------------------------- Batch processing -----------------------------
+# ------------------------- Batch processing & saving -----------------------------
 
 def _iter_params(timeseries_dir: Path | str):
     ts_dir = Path(timeseries_dir)
@@ -171,7 +156,6 @@ def _iter_params(timeseries_dir: Path | str):
         if p.name.startswith("_"):
             continue
         yield p.stem
-
 
 def batch_forecast(
     timeseries_dir: str | Path,
@@ -186,44 +170,30 @@ def batch_forecast(
     train_start: Optional[object] = None,
     train_end: Optional[object] = None,
     # forecast window
-    periods: Optional[int] = 12,           # used if fcst_end is None
+    periods: Optional[int] = 12,
     fcst_start: Optional[object] = None,
     fcst_end: Optional[object] = None,
-    # output
+    # saving
     write_to_disk: bool = False,
-    outdir_name: str = "_forecasts",
+    forecast_name: str = "run1",
+    base_output_dir: Path | str = BASE_FORECASTS_DIR,
 ) -> Dict[str, pd.DataFrame]:
     """
     Run forecasts for one or all parameters.
 
-    Training window:
-      - train_start/train_end limit the *history* used to fit the model.
+    Saves under: <base_output_dir>/<forecast_name>/ when write_to_disk=True
+      - <param>.csv (ds,yhat,yhat_lower,yhat_upper)
+      - _manifest.json (one per run)
 
-    Forecast window:
-      - If fcst_end is provided, periods is auto-computed from the last training point to fcst_end.
-      - fcst_start/fcst_end filter the *returned* forecast rows.
-      - If both are None, returns full history+future horizon (periods).
-
-    Returns dict {param: forecast_df}. If write_to_disk=True, also writes CSV and a manifest.
+    Returns dict {param: forecast_df} in all cases.
     """
     ts_dir = Path(timeseries_dir)
     outputs: Dict[str, pd.DataFrame] = {}
 
-    out_root = ts_dir / outdir_name
+    base_dir = Path(base_output_dir)
+    out_root = (base_dir / forecast_name).resolve()
     if write_to_disk:
         out_root.mkdir(parents=True, exist_ok=True)
-
-    def _out_name(prm: str) -> str:
-        suffix = []
-        if station_code:
-            suffix.append(f"code={station_code}")
-        if station_id:
-            suffix.append(f"id={station_id}")
-        if train_start or train_end:
-            suffix.append(f"train={str(_parse_dt(train_start))[:10]}..{str(_parse_dt(train_end))[:10]}")
-        if fcst_start or fcst_end:
-            suffix.append(f"fcst={str(_parse_dt(fcst_start))[:10]}..{str(_parse_dt(fcst_end))[:10]}")
-        return f"{prm}" + (("__" + "_".join(suffix)) if suffix else "") + ".csv"
 
     params = [param] if param else list(_iter_params(ts_dir))
 
@@ -246,13 +216,14 @@ def batch_forecast(
         outputs[prm] = result
 
         if write_to_disk:
-            (out_root / _out_name(prm)).write_text(result.to_csv(index=False), encoding="utf-8")
+            (out_root / f"{prm}.csv").write_text(result.to_csv(index=False), encoding="utf-8")
 
     if write_to_disk:
         manifest = {
             "timeseries_dir": str(ts_dir),
-            "outdir": str(out_root),
-            "params": [{"name": k, "forecast_file": str(out_root / _out_name(k))} for k in sorted(outputs.keys())],
+            "output_dir": str(out_root),
+            "forecast_name": forecast_name,
+            "params": [{"name": k, "forecast_file": str(out_root / f"{k}.csv")} for k in sorted(outputs.keys())],
             "settings": {
                 "freq": freq, "agg": agg, "growth": growth,
                 "train_start": str(_parse_dt(train_start)) if train_start else None,

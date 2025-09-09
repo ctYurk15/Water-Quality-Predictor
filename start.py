@@ -2,7 +2,8 @@ from app.dataset import Dataset
 from app.timeseries import Timeseries
 
 from timeseries_builder import build_timeseries
-from prophet_module import batch_forecast, forecast_one
+from prophet_module import batch_forecast
+from forecast_plotter import generate_plots
 
 print("\n-----------------------------")
 print('Welcome! Please choose an action: ')
@@ -50,15 +51,57 @@ match action:
         forecast_start_date = input("Forecast start date: ").strip() # 2011-01-01
         forecast_end_date = input("Forecast end date: ").strip() # 2012-12-28
 
+        forecast_name = input("Forecast name: ").strip()
+
+        #batch_forecast(
+        #    timeseries_dir=Timeseries.fullPath(timeseries_name),
+        #    freq="MS", 
+        #    agg="mean",
+        #    param="Azot",                # або None для всіх
+        #    station_code=None,           # або '...'
+        #    station_id=None,             # або '26853'
+        #    write_to_disk=True,          # вмикає запис CSV + _manifest.json
+        #    outdir_name="forecasts",
+        #    train_start=train_start_date, train_end=train_end_date,
+        #    fcst_start=forecast_start_date, fcst_end=forecast_end_date,  # periods auto-derived
+        #)
+        #paths = generate_plots(
+        #    timeseries_dir=Timeseries.fullPath(timeseries_name),
+        #    param="Azot",
+        #   station_code=None,         # or "...", optional
+        #    station_id=None,           # or "26853", optional
+        #    # must match your forecast settings so the lines align:
+        #    freq="MS",
+        #    agg="mean",
+        #    growth="linear",
+        #    # the same date windows you used when calling batch_forecast:
+        #    train_start=train_start_date, train_end=train_end_date,
+        #    fcst_start=forecast_start_date, fcst_end=forecast_end_date,
+        #    periods=None,              # ignored when fcst_end is provided
+        #    outdir_name="_plots"
+        #)
+
+        # 1) Forecast & (optionally) save CSVs in forecasts/<name>/
         batch_forecast(
             timeseries_dir=Timeseries.fullPath(timeseries_name),
-            freq="MS", 
-            agg="mean",
-            param="Azot",                # або None для всіх
-            station_code=None,           # або '...'
-            station_id=None,             # або '26853'
-            write_to_disk=True,          # вмикає запис CSV + _manifest.json
-            outdir_name="forecasts",
+            param="Azot",
+            freq="MS", agg="mean",
             train_start=train_start_date, train_end=train_end_date,
-            fcst_start=forecast_start_date, fcst_end=forecast_end_date,  # periods auto-derived
+            fcst_start=forecast_start_date, fcst_end=forecast_end_date,
+            write_to_disk=True,
+            forecast_name=forecast_name,            # << your forecast run name
         )
+
+        # 2) Generate images + JSON in the same forecasts/<name>/ folder
+        paths = generate_plots(
+            timeseries_dir=Timeseries.fullPath(timeseries_name),
+            param="Azot",
+            freq="MS", agg="mean",
+            train_start=train_start_date, train_end=train_end_date,
+            fcst_start=forecast_start_date, fcst_end=forecast_end_date,
+            forecast_name=forecast_name,            # << same name to group outputs
+        )
+        print(paths)
+
+
+        print(paths)  # dict with absolute paths to the three PNGs
