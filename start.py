@@ -4,6 +4,9 @@ from app.timeseries import Timeseries
 from timeseries_builder import build_timeseries
 from prophet_module import batch_forecast
 from forecast_plotter import generate_plots
+from prophet_multivar import forecast_with_regressors
+from forecast_plotter_multivar import generate_multivar_plots
+from forecast_renderer import render_from_json
 
 print("\n-----------------------------")
 print('Welcome! Please choose an action: ')
@@ -82,26 +85,43 @@ match action:
         #)
 
         # 1) Forecast & (optionally) save CSVs in forecasts/<name>/
-        batch_forecast(
-            timeseries_dir=Timeseries.fullPath(timeseries_name),
-            param="Azot",
-            freq="MS", agg="mean",
-            train_start=train_start_date, train_end=train_end_date,
-            fcst_start=forecast_start_date, fcst_end=forecast_end_date,
-            write_to_disk=True,
-            forecast_name=forecast_name,            # << your forecast run name
-        )
+        #batch_forecast(
+        #    timeseries_dir=Timeseries.fullPath(timeseries_name),
+        #    param="Azot",
+        #    freq="MS", agg="mean",
+        #    train_start=train_start_date, train_end=train_end_date,
+        #    fcst_start=forecast_start_date, fcst_end=forecast_end_date,
+        #    write_to_disk=True,
+        #    forecast_name=forecast_name,            # << your forecast run name
+        #)
 
         # 2) Generate images + JSON in the same forecasts/<name>/ folder
-        paths = generate_plots(
+        #paths = generate_plots(
+        #    timeseries_dir=Timeseries.fullPath(timeseries_name),
+        #   param="Azot",
+        #    freq="MS", agg="mean",
+        #    train_start=train_start_date, train_end=train_end_date,
+        #    fcst_start=forecast_start_date, fcst_end=forecast_end_date,
+        #    forecast_name=forecast_name,            # << same name to group outputs
+        #)
+        #print(paths)
+
+        fcst = forecast_with_regressors(
             timeseries_dir=Timeseries.fullPath(timeseries_name),
-            param="Azot",
-            freq="MS", agg="mean",
+            target="Azot",
+            regressors=["Amoniy", "Atrazin"],
+            station_code=None,              # or "...", optional
+            station_id=None,                # or "26853", optional
+            freq="MS", agg="mean", growth="linear",
             train_start=train_start_date, train_end=train_end_date,
             fcst_start=forecast_start_date, fcst_end=forecast_end_date,
-            forecast_name=forecast_name,            # << same name to group outputs
+            forecast_name=forecast_name,           # groups outputs under forecasts/set1/
+            write_to_disk=True
         )
+
+        print(fcst.head())
+
+    case 3:
+        forecast_name = input("Forecast name: ").strip()
+        paths = render_from_json(forecast_name, target="Azot")
         print(paths)
-
-
-        print(paths)  # dict with absolute paths to the three PNGs

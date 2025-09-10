@@ -1,0 +1,338 @@
+"""
+prophet_multivar
+----------------
+Forecast a target parameter with Prophet using other parameters as extra regressors.
+
+Example:
+    from prophet_multivar import forecast_with_regressors
+
+    fcst = forecast_with_regressors(
+        timeseries_dir="timeseries/water_quality",
+        target="Azot",
+        regressors=["Amoniy", "Atrazin"],
+        station_code=None,          # or "...", optional
+        station_id=None,            # or "26853", optional
+        freq="MS", agg="mean",
+        train_start="2007-01-01", train_end="2010-12-31",
+        fcst_start="2011-01-01", fcst_end="2012-12-31",
+        forecast_name="set1"
+    )
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Dict, List, Optional
+import json
+import pandas as pd
+
+from prophet import Prophet
+
+# Reuse helpers/semantics from your existing univariate module
+from prophet_module import (
+    BASE_FORECASTS_DIR,
+    _parse_dt,                 # datetime parser
+    _read_param_csv,
+    _filter_station,
+    _aggregate,                # (ds,y) aggregation to freq with agg
+    _apply_date_range,
+    _align_next_step,
+    _ceil_to_freq,
+    _derive_periods,
+    forecast_one,              # core Prophet fit/predict on (ds,y)
+)
+
+# -------------------------- internal helpers --------------------------
+
+def _prepare_param_series(
+    timeseries_dir: Path | str,
+    param: str,
+    station_code: Optional[str],
+    station_id: Optional[str],
+    freq: str,
+    agg: str,
+    train_start: Optional[object],
+    train_end: Optional[object],
+    rename_y_to: str,
+) -> pd.DataFrame:
+    """
+    Load one parameter, filter station, apply train window, aggregate to (ds, y),
+    then rename y -> rename_y_to.
+    """
+    df = _read_param_csv(timeseries_dir, param)
+    df = _filter_station(df, station_code=station_code, station_id=station_id)
+    df = _apply_date_range(df, start=train_start, end=train_end, col="ds")
+    ser = _aggregate(df, freq=freq, how=agg)
+    if ser.empty:
+        return ser
+    ser = ser[["ds", "y"]].dropna().sort_values("ds").reset_index(drop=True)
+    return ser.rename(columns={"y": rename_y_to})
+
+
+def _merge_on_ds(frames: List[pd.DataFrame]) -> pd.DataFrame:
+    """Left-join sequentially on 'ds' to keep common timestamps only (inner behavior)."""
+    if not frames:
+        return pd.DataFrame(columns=["ds"])
+    out = frames[0]
+    for f in frames[1:]:
+        out = out.merge(f, on="ds", how="inner")
+    # Ensure sorted and no duplicates
+    return out.dropna().sort_values("ds").reset_index(drop=True)
+
+
+def _forecast_regressors_future(
+    timeseries_dir: Path | str,
+    regs: List[str],
+    station_code: Optional[str],
+    station_id: Optional[str],
+    freq: str,
+    agg: str,
+    train_start: Optional[object],
+    train_end: Optional[object],
+    fcst_start: pd.Timestamp,
+    fcst_end: pd.Timestamp,
+) -> pd.DataFrame:
+    """
+    Build a future dataframe with columns: ds, <reg1>, <reg2>, ...
+    Each regressor is forecasted univariately; we take its yhat for the requested window.
+    """
+    future_index = pd.date_range(start=fcst_start, end=fcst_end, freq=freq)
+    reg_future = pd.DataFrame({"ds": future_index})
+
+    for r in regs:
+        # 1) training series for regressor r
+        ser_r = _prepare_param_series(
+            timeseries_dir, r, station_code, station_id, freq, agg, train_start, train_end, rename_y_to="y"
+        )
+        if ser_r.empty:
+            raise ValueError(f"Regressor '{r}' has no data in the training window after filtering.")
+        # 2) forecast regressor r over the future window
+        _, fcst_r = forecast_one(
+            series=ser_r, periods=None, freq=freq, growth="linear",
+            fcst_start=fcst_start, fcst_end=fcst_end
+        )
+        yhat = fcst_r[["ds", "yhat"]].rename(columns={"yhat": r})
+        # 3) join to common future frame
+        reg_future = reg_future.merge(yhat, on="ds", how="left")
+
+    # if any regressor missing a point (rare), forward-fill/back-fill within future window
+    reg_future = reg_future.sort_values("ds").ffill().bfill()
+    return reg_future
+
+
+# --------------------------- public API --------------------------------
+
+def forecast_with_regressors(
+    timeseries_dir: str | Path,
+    target: str,
+    regressors: List[str],
+    # station filter
+    station_code: Optional[str] = None,
+    station_id: Optional[str] = None,
+    # aggregation/model
+    freq: str = "MS",
+    agg: str = "mean",
+    growth: str = "linear",
+    # training window
+    train_start: Optional[object] = None,
+    train_end: Optional[object] = None,
+    # forecast window
+    periods: Optional[int] = 12,
+    fcst_start: Optional[object] = None,
+    fcst_end: Optional[object] = None,
+    # saving
+    forecast_name: str = "multirun1",
+    base_output_dir: Path | str = BASE_FORECASTS_DIR,
+    write_to_disk: bool = True,
+) -> pd.DataFrame:
+    """
+    Multivariate Prophet:
+      - Train target on (ds, y) plus extra regressors columns
+      - Future regressor values are auto-forecasted univariately and injected
+
+    Returns the target forecast DataFrame (includes ds, yhat, yhat_lower, yhat_upper).
+
+    Saves under forecasts/<forecast_name>/:
+      - <target>__with_[reg1+reg2+...].csv
+      - <target>__with_[...]__manifest.json
+    """
+    ts_dir = Path(timeseries_dir)
+    base_dir = Path(base_output_dir)
+    out_dir = (base_dir / forecast_name).resolve()
+    if write_to_disk:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    # ---------- 1) build training matrix ----------
+    target_train = _prepare_param_series(
+        ts_dir, target, station_code, station_id, freq, agg, train_start, train_end, rename_y_to="y"
+    )
+    if target_train.empty:
+        raise ValueError("Target has no data after applying station/date filters.")
+
+    reg_frames = []
+    for r in regressors:
+        reg_frames.append(
+            _prepare_param_series(
+                ts_dir, r, station_code, station_id, freq, agg, train_start, train_end, rename_y_to=r
+            )
+        )
+
+    train_df = _merge_on_ds([target_train] + reg_frames)
+    if train_df.empty or len(train_df) < 10:
+        raise ValueError("Insufficient overlapping data between target and regressors after alignment.")
+
+    # ---------- 2) decide forecast window ----------
+    last_hist = train_df["ds"].max()
+    s = _parse_dt(fcst_start) if fcst_start is not None else None
+    e = _parse_dt(fcst_end) if fcst_end is not None else None
+
+    if s is None and e is not None:
+        s = _align_next_step(last_hist, freq)
+    if e is not None:
+        e = _ceil_to_freq(e, freq)
+    if e is not None:
+        periods = _derive_periods(last_hist, e, freq)
+    if periods is None:
+        periods = 0
+
+    # ---------- 3) fit Prophet with regressors ----------
+    m = Prophet(growth=growth)
+    for r in regressors:
+        m.add_regressor(r)
+
+    m.fit(train_df.rename(columns={"ds": "ds", "y": "y"}))
+
+    # Build future ds
+    future = m.make_future_dataframe(periods=int(periods), freq=freq, include_history=True)
+
+    # Inject historical regressors (train_df) for history rows
+    future = future.merge(train_df.drop(columns=["y"]), on="ds", how="left")
+
+    # For future rows, forecast regressors and fill
+    if periods and periods > 0:
+        if s is None:  # first future step
+            s = _align_next_step(last_hist, freq)
+        if e is None:  # derive end if only periods provided
+            e = pd.date_range(start=s, periods=periods, freq=freq)[-1]
+        reg_future = _forecast_regressors_future(
+            timeseries_dir=ts_dir,
+            regs=regressors,
+            station_code=station_code,
+            station_id=station_id,
+            freq=freq,
+            agg=agg,
+            train_start=train_start,
+            train_end=train_end,
+            fcst_start=s,
+            fcst_end=e,
+        )
+        # fill in future rows where regressors are NaN
+        future = future.merge(reg_future, on="ds", how="left", suffixes=("", "_fcst"))
+        for r in regressors:
+            # prefer existing (history) values; else take forecasted
+            if r in future.columns and f"{r}_fcst" in future.columns:
+                future[r] = future[r].combine_first(future[f"{r}_fcst"])
+        # clean temp cols
+        future = future.drop(columns=[c for c in future.columns if c.endswith("_fcst")])
+
+    # Predict
+    fcst = m.predict(future)
+
+    # Clip to requested window if provided
+    if s is not None or e is not None:
+        s_eff = s if s is not None else fcst["ds"].min()
+        e_eff = e if e is not None else fcst["ds"].max()
+        fcst = fcst.loc[fcst["ds"].between(s_eff, e_eff, inclusive="both")]
+
+    result = fcst[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
+
+    # Build aligned ACTUALS for the TARGET on the forecast window
+    x_min, x_max = pd.to_datetime(result["ds"].min()), pd.to_datetime(result["ds"].max())
+    raw_target = _read_param_csv(ts_dir, target)
+    raw_target = _filter_station(raw_target, station_code=station_code, station_id=station_id)
+    raw_target = _apply_date_range(raw_target, start=x_min, end=x_max, col="ds")
+    actuals = _aggregate(raw_target, freq=freq, how=agg)  # (ds,y)
+
+    # ---------- 4) save ----------
+    if write_to_disk:
+        item = {
+            "kind": "multivariate",
+            "target": target,
+            "regressors": regressors,
+            "forecast_name": forecast_name,
+            "timeseries_dir": str(ts_dir),
+            "station_code": station_code,
+            "station_id": station_id,
+            "settings": {
+                "freq": freq, "agg": agg, "growth": growth,
+                "train_start": str(pd.to_datetime(train_start)) if train_start else None,
+                "train_end": str(pd.to_datetime(train_end)) if train_end else None,
+                "fcst_start": str(x_min),  # already clipped
+                "fcst_end": str(x_max),
+            },
+            "predictions": [
+                {
+                    "ds": pd.to_datetime(r.ds).isoformat(),
+                    "yhat": float(r.yhat),
+                    "yhat_lower": float(r.yhat_lower),
+                    "yhat_upper": float(r.yhat_upper),
+                } for r in result.itertuples(index=False)
+            ],
+            "actuals": [
+                {
+                    "ds": pd.to_datetime(r.ds).isoformat(),
+                    "y": float(r.y),
+                } for r in actuals.itertuples(index=False)
+            ],
+        }
+        _append_run_item_json(out_dir, item)
+        #tag = "with_" + "+".join(regressors) if regressors else "univariate"
+        #fn_csv = out_dir / f"{target}__{tag}.csv"
+        #fn_json = out_dir / f"{target}__{tag}__manifest.json"
+
+        #fn_csv.write_text(result.to_csv(index=False), encoding="utf-8")
+
+        #payload = {
+        #    "target": target,
+        #    "regressors": regressors,
+        #    "timeseries_dir": str(ts_dir),
+        #    "output_dir": str(out_dir),
+        #    "forecast_name": forecast_name,
+        #    "settings": {
+        #        "freq": freq, "agg": agg, "growth": growth,
+        #        "station_code": station_code, "station_id": station_id,
+        #        "train_start": str(pd.to_datetime(train_start)) if train_start else None,
+        #        "train_end": str(pd.to_datetime(train_end)) if train_end else None,
+        #        "periods": periods,
+        #        "fcst_start": str(s) if s is not None else None,
+        #        "fcst_end": str(e) if e is not None else None,
+        #    },
+        #    "predictions": [
+        #        {
+        #            "ds": pd.to_datetime(r.ds).isoformat(),
+        #            "yhat": float(r.yhat),
+        #            "yhat_lower": float(r.yhat_lower),
+        #            "yhat_upper": float(r.yhat_upper),
+        #        }
+        #        for r in result.itertuples(index=False)
+        #    ],
+        #}
+        #fn_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return result
+
+# Append to data.json
+def _append_run_item_json(out_dir: Path, item: dict) -> Path:
+    data_path = out_dir / "data.json"
+    if data_path.exists():
+        try:
+            blob = json.loads(data_path.read_text(encoding="utf-8"))
+            if not isinstance(blob, dict) or "items" not in blob:
+                blob = {"items": []}
+        except Exception:
+            blob = {"items": []}
+    else:
+        blob = {"items": []}
+    blob["items"].append(item)
+    data_path.write_text(json.dumps(blob, ensure_ascii=False, indent=2), encoding="utf-8")
+    return data_path
