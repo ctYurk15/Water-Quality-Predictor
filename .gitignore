@@ -1,3 +1,6 @@
 raw-datasets/*.csv
 timeseries/*/*.csv
+forecasts/*/*.csv
+forecasts/*/*.png
+forecasts/*/*.json
 __pycache__
