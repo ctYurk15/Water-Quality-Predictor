@@ -53,13 +53,30 @@ match action:
         train_end_date = input("Train end date: ").strip() # 2010-12-31
         forecast_start_date = input("Forecast start date: ").strip() # 2011-01-01
         forecast_end_date = input("Forecast end date: ").strip() # 2012-12-28
+        accuracy_raw = input("Accuracy (maximum % of prediction error, default - 15): ").strip()
+        accuracy = 0.15
+        if accuracy_raw != "":
+            accuracy = int(accuracy_raw) / 100
+
+        min_val = input("Minimum value (default - 0): ").strip()
+        target_min = 0.0
+        if min_val != "":
+            target_min = float(target_min)
+
+        max_val = input("Maximum value (default - 6): ").strip()
+        target_max = 6.0
+        if max_val != "":
+            target_max = float(target_max)
+
 
         forecast_name = input("Forecast name: ").strip()
 
         fcst = forecast_with_regressors(
             timeseries_dir=Timeseries.fullPath(timeseries_name),
             target="Azot",
-            regressors=["Amoniy", "Atrazin"],
+            #regressors=["Amoniy"],
+            #regressors=["Amoniy", "Atrazin"],
+            regressors=["Amoniy", "Atrazin", "BSK5", "Fosfat", "Hlorid"],
             #regressors=[],
             station_code=None,              # or "...", optional
             station_id=None,                # or "26853", optional
@@ -67,7 +84,18 @@ match action:
             train_start=train_start_date, train_end=train_end_date,
             fcst_start=forecast_start_date, fcst_end=forecast_end_date,
             forecast_name=forecast_name,           # groups outputs under forecasts/set1/
-            write_to_disk=True
+            write_to_disk=True,
+            accuracy_tolerance=accuracy,
+            target_min=target_min,             # floor
+            target_max=target_max,             # cap
+            # NEW: regularization + smoothing
+            regressor_prior_scale=0.1,          # try 0.05–0.5; smaller → smoother
+            regressor_standardize="auto",
+            regressor_mode=None,                 # or "additive" explicitly
+            smooth_regressors=True,
+            smooth_window=7,                     # try 14 for extra smoothness
+            changepoint_prior_scale=0.05,        # try 0.02–0.1
+            seasonality_prior_scale=5.0,
         )
 
         print(fcst.head())
