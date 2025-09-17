@@ -75,12 +75,15 @@ match action:
             timeseries_dir=Timeseries.fullPath(timeseries_name),
             target="Azot",
             #regressors=["Amoniy"],
-            #regressors=["Amoniy", "Atrazin"],
-            regressors=["Amoniy", "Atrazin", "BSK5", "Fosfat", "Hlorid"],
+            regressors=["Amoniy", "Atrazin"],
+            #regressors=["Amoniy", "Atrazin", "BSK5", "Fosfat", "Hlorid"],
             #regressors=[],
             station_code=None,              # or "...", optional
             station_id=None,                # or "26853", optional
-            freq="D", agg="mean", growth="linear",
+            freq="D", 
+            agg="mean", 
+            growth="linear",
+            model_freq="W",
             train_start=train_start_date, train_end=train_end_date,
             fcst_start=forecast_start_date, fcst_end=forecast_end_date,
             forecast_name=forecast_name,           # groups outputs under forecasts/set1/
@@ -89,13 +92,23 @@ match action:
             target_min=target_min,             # floor
             target_max=target_max,             # cap
             # NEW: regularization + smoothing
-            regressor_prior_scale=0.1,          # try 0.05–0.5; smaller → smoother
+            regressor_prior_scale=0.05,          # try 0.05–0.5; smaller → smoother
             regressor_standardize="auto",
-            regressor_mode=None,                 # or "additive" explicitly
+            regressor_mode="additive",                 # or "additive" explicitly
             smooth_regressors=True,
-            smooth_window=7,                     # try 14 for extra smoothness
+            smooth_window=14,                     # try 14 for extra smoothness
             changepoint_prior_scale=0.05,        # try 0.02–0.1
             seasonality_prior_scale=5.0,
+            regressor_global_importance = 0.1,
+            #regressor_importance = {
+            #    "Amoniy": 2.0,    # 2× influence vs others
+            #    "Atrazin": 0.5,   # 0.5× influence (more shrinkage)
+            #}
+            # keep your other params (bounds, smoothing, priors) as you had
+            #regressor_future_strategy="moving_average",
+            regressor_future_ma_window=60,      # try 30–60 for daily data
+            regressor_future_strategy="linear",
+            regressor_future_linear_window=120
         )
 
         print(fcst.head())

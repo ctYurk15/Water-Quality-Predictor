@@ -91,18 +91,22 @@ def _forecast_regressors_future(
     train_end: Optional[object],
     fcst_start: pd.Timestamp,
     fcst_end: pd.Timestamp,
+    *,
+    # strategy knobs
+    strategy: str = "prophet",           # 'prophet' | 'moving_average' | 'last' | 'linear'
+    ma_window: int = 30,                 # for moving_average
+    linear_window: int = 90,             # days used to fit linear trend
+    prophet_cp_scale: float = 0.01,      # smooth trend for regressor
+    prophet_disable_seasonality: bool = True,
 ) -> pd.DataFrame:
     """
-    Build a dense future dataframe on the exact [fcst_start..fcst_end] grid:
-      columns = ['ds'] + regs
-    Each regressor is forecast univariately; we take its yhat on that grid.
-    Ensures no NaNs remain (ffill/bfill within the future window), else raises.
+    Return dense future for regressors on [fcst_start..fcst_end] with columns ['ds'] + regs.
+    Ensures no NaNs (ffill/bfill).
     """
     future_index = pd.date_range(start=fcst_start, end=fcst_end, freq=freq)
-    reg_future = pd.DataFrame({"ds": future_index})
+    out = pd.DataFrame({"ds": future_index}).set_index("ds")
 
     for r in regs:
-        # Training series for regressor r (aligned like the target)
         ser_r = _prepare_param_series(
             timeseries_dir=timeseries_dir,
             param=r,
@@ -116,29 +120,57 @@ def _forecast_regressors_future(
         )
         if ser_r.empty:
             raise ValueError(f"Regressor '{r}' has no data in the training window after filtering.")
+        hist = ser_r.sort_values("ds").set_index("ds")["y"]
 
-        # Forecast regressor r exactly on [fcst_start..fcst_end]
-        _, fcst_r = forecast_one(
-            series=ser_r,
-            periods=None,
-            freq=freq,
-            growth="linear",
-            fcst_start=fcst_start,
-            fcst_end=fcst_end,
-        )
-        yhat = fcst_r[["ds", "yhat"]].rename(columns={"yhat": r})
-        reg_future = reg_future.merge(yhat, on="ds", how="left")
+        if strategy == "last":
+            y_future = pd.Series(hist.iloc[-1], index=future_index)
 
-    # Reindex to ensure one row per future step and fill any internal gaps
-    reg_future = reg_future.sort_values("ds").set_index("ds").reindex(future_index)
-    reg_future = reg_future.ffill().bfill()
+        elif strategy == "moving_average":
+            val = hist.rolling(ma_window, min_periods=1).mean().iloc[-1]
+            y_future = pd.Series(val, index=future_index)
 
-    # Final check: all regressors must be non-null
-    missing_cols = [c for c in reg_future.columns if reg_future[c].isna().any()]
-    if missing_cols:
-        raise ValueError(f"Regressor(s) {missing_cols} missing after fill for some future steps.")
+        elif strategy == "linear":
+            # === FIX: stop using deprecated .last("ND"); use a timestamp mask instead ===
+            if len(hist) > 3:
+                cutoff = hist.index.max() - pd.Timedelta(days=int(linear_window))
+                h = hist.loc[hist.index >= cutoff]
+                if h.empty:  # fallback just in case
+                    h = hist
+            else:
+                h = hist
 
-    return reg_future.reset_index().rename(columns={"index": "ds"})
+            x = (h.index.view("int64") // 10**9).astype(float)  # seconds since epoch
+            y = h.values.astype(float)
+            x_mean, y_mean = x.mean(), y.mean()
+            denom = ((x - x_mean) ** 2).sum()
+            if denom == 0:
+                slope = 0.0
+                intercept = y_mean
+            else:
+                slope = ((x - x_mean) * (y - y_mean)).sum() / denom
+                intercept = y_mean - slope * x_mean
+            xf = (future_index.view("int64") // 10**9).astype(float)
+            y_future = pd.Series(intercept + slope * xf, index=future_index)
+
+        else:  # 'prophet' (ultra-smooth)
+            pm = Prophet(
+                growth="linear",
+                changepoint_prior_scale=prophet_cp_scale,
+                yearly_seasonality=not prophet_disable_seasonality,
+                weekly_seasonality=not prophet_disable_seasonality,
+                daily_seasonality=False,
+            )
+            pm.fit(ser_r.rename(columns={"ds": "ds", "y": "y"}))
+            pfut = pd.DataFrame({"ds": future_index})
+            pfc = pm.predict(pfut)[["ds", "yhat"]].set_index("ds")["yhat"]
+            y_future = pfc.reindex(future_index)
+
+        out[r] = y_future
+
+    out = out.reindex(future_index).ffill().bfill()
+    return out.reset_index().rename(columns={"index": "ds"})
+
+
 
 
 # --------------------------- public API --------------------------------
@@ -150,18 +182,21 @@ def forecast_with_regressors(
     # station filter
     station_code: Optional[str] = None,
     station_id: Optional[str] = None,
+    # OUTPUT grid for predictions/images
+    freq: str = "D",                    # <-- daily output points
+    # MODEL grid for Prophet fit/forecast (can be smoother than output)
+    model_freq: Optional[str] = None,   # e.g. "W"; if None -> same as freq
     # aggregation/model grid
-    freq: str = "MS",
     agg: str = "mean",
-    growth: str = "linear",            # overridden to 'logistic' if bounds provided
+    growth: str = "linear",             # overridden to 'logistic' if bounds provided
     # optional bounds for TARGET
     target_min: Optional[float] = None,
     target_max: Optional[float] = None,
     # training window
     train_start: Optional[object] = None,
     train_end: Optional[object] = None,
-    # forecast window
-    periods: Optional[int] = 12,
+    # forecast window (in absolute dates or periods on the MODEL grid)
+    periods: Optional[int] = None,
     fcst_start: Optional[object] = None,
     fcst_end: Optional[object] = None,
     # saving
@@ -170,26 +205,43 @@ def forecast_with_regressors(
     write_to_disk: bool = True,
     # accuracy
     accuracy_tolerance: float = 0.20,
-    # --- NEW: stability & smoothing knobs ---
-    regressor_prior_scale: float = 0.1,          # smaller => stronger shrinkage
-    regressor_mode: Optional[str] = None,        # "additive" | "multiplicative" | None(=default)
-    regressor_standardize: str | bool = "auto",  # let Prophet standardize each regressor
-    smooth_regressors: bool = True,              # trailing rolling mean on regressors
-    smooth_window: int = 7,                      # e.g., 7-day smoothing
-    changepoint_prior_scale: float = 0.05,       # smoother trend
-    seasonality_prior_scale: float = 5.0,        # keep moderate seasonality flexibility
+    # stability & smoothing knobs
+    regressor_prior_scale: float = 0.1,
+    regressor_mode: Optional[str] = None,        # "additive" | "multiplicative" | None
+    regressor_standardize: str | bool = "auto",
+    smooth_regressors: bool = True,
+    smooth_window: int = 7,
+    changepoint_prior_scale: float = 0.05,
+    seasonality_prior_scale: float = 5.0,
+    # importance controls
+    regressor_global_importance: float = 1.0,
+    regressor_importance: Optional[Dict[str, float]] = None,
+    # FUTURE regressor generation
+    regressor_future_strategy: str = "moving_average",  # 'prophet' | 'moving_average' | 'last' | 'linear'
+    regressor_future_ma_window: int = 30,
+    regressor_future_linear_window: int = 90,
+    regressor_future_prophet_cp_scale: float = 0.01,
+    regressor_future_prophet_disable_seasonality: bool = True,
 ) -> pd.DataFrame:
     """
-    Multivariate Prophet forecast with extra regressors and optional target bounds.
-    Adds regularization + smoothing to stabilize forecasts when many regressors are used.
-    Writes CSV + data.json (predictions, actuals, daily actuals, metrics) under forecasts/<forecast_name>/.
+    Train on `model_freq` (e.g., 'W') and output predictions on `freq` (e.g., 'D').
+    This stabilizes daily forecasts by modeling a smoother signal and then
+    linearly interpolating to daily points for presentation.
+
+    Writes CSV + data.json under forecasts/<forecast_name>/ with:
+      - predictions on OUTPUT grid (freq)
+      - accuracy computed on MODEL grid (more meaningful)
+      - daily actuals for plotting
     """
     ts_dir = Path(timeseries_dir)
     out_dir = (Path(base_output_dir) / forecast_name).resolve()
     if write_to_disk:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---------- Bounds / logistic config ----------
+    # Decide model grid
+    mod_freq = model_freq or freq
+
+    # ---- bounds / logistic config ----
     use_bounds = (target_min is not None) or (target_max is not None)
     if use_bounds:
         if (target_min is not None) and (target_max is not None) and float(target_min) >= float(target_max):
@@ -200,9 +252,9 @@ def forecast_with_regressors(
         floor_val = None
         cap_val = None
 
-    # ---------- 1) Build training matrix ----------
+    # ---- 1) training matrix on MODEL grid ----
     target_train = _prepare_param_series(
-        ts_dir, target, station_code, station_id, freq, agg, train_start, train_end, rename_y_to="y"
+        ts_dir, target, station_code, station_id, mod_freq, agg, train_start, train_end, rename_y_to="y"
     )
     if target_train.empty:
         raise ValueError("Target has no data after applying station/date filters.")
@@ -210,7 +262,7 @@ def forecast_with_regressors(
     reg_frames = []
     for r in regressors:
         ser_r = _prepare_param_series(
-            ts_dir, r, station_code, station_id, freq, agg, train_start, train_end, rename_y_to=r
+            ts_dir, r, station_code, station_id, mod_freq, agg, train_start, train_end, rename_y_to=r
         )
         if ser_r.empty:
             raise ValueError(f"Regressor '{r}' has no data after applying station/date filters.")
@@ -220,80 +272,80 @@ def forecast_with_regressors(
     if train_df.empty or len(train_df) < 10:
         raise ValueError("Insufficient overlapping data between target and regressors after alignment.")
 
-    # Add bounds to training for logistic growth
+    # bounds for logistic
     if use_bounds:
         if cap_val != float("inf"):
             train_df["cap"] = cap_val
         train_df["floor"] = floor_val
 
-    # Optional: smooth regressors in HISTORY (past-only trailing window)
+    # optional smoothing (history)
     if smooth_regressors and smooth_window > 1:
         train_df = train_df.sort_values("ds")
         for r in regressors:
             train_df[r] = train_df[r].rolling(window=smooth_window, min_periods=1).mean()
 
-    # ---------- 2) Decide forecast window ----------
+    # ---- 2) forecast window on MODEL grid ----
     last_hist = train_df["ds"].max()
     s = _parse_dt(fcst_start) if fcst_start is not None else None
     e = _parse_dt(fcst_end) if fcst_end is not None else None
     if s is None and e is not None:
-        s = _align_next_step(last_hist, freq)
+        s = _align_next_step(last_hist, mod_freq)
     if e is not None:
-        e = _ceil_to_freq(e, freq)
+        e = _ceil_to_freq(e, mod_freq)
     if e is not None:
-        periods = _derive_periods(last_hist, e, freq)
+        periods = _derive_periods(last_hist, e, mod_freq)
     if periods is None:
         periods = 0
 
-    # ---------- 3) Fit Prophet (regularized) ----------
+    # ---- 3) fit Prophet (regularized) on MODEL grid ----
     model_growth = "logistic" if use_bounds else growth
     m = Prophet(
         growth=model_growth,
         changepoint_prior_scale=changepoint_prior_scale,
         seasonality_prior_scale=seasonality_prior_scale,
     )
+
+    reg_imp = regressor_importance or {}
     for r in regressors:
-        m.add_regressor(
-            r,
-            prior_scale=regressor_prior_scale,
-            standardize=regressor_standardize,
-            mode=regressor_mode,   # None -> Prophet default additive
-        )
+        eff_ps = regressor_prior_scale * regressor_global_importance * float(reg_imp.get(r, 1.0))
+        if eff_ps <= 0:
+            eff_ps = 1e-6
+        m.add_regressor(r, prior_scale=eff_ps, standardize=regressor_standardize, mode=regressor_mode)
 
     m.fit(train_df.rename(columns={"ds": "ds", "y": "y"}))
 
-    # ---------- 4) Build future frame ----------
-    future = m.make_future_dataframe(periods=int(periods), freq=freq, include_history=True)
+    # ---- 4) build future on MODEL grid ----
+    future = m.make_future_dataframe(periods=int(periods), freq=mod_freq, include_history=True)
 
-    # Keep bounds on 'future' BEFORE merges (avoid *_x/_y)
     if use_bounds:
         if cap_val != float("inf"):
             future["cap"] = cap_val
         future["floor"] = floor_val
 
-    # Merge historical regressor columns (exclude y/cap/floor to avoid suffixes)
+    # merge history features (exclude y/cap/floor)
     drop_cols = ["y"]
     if use_bounds:
         drop_cols += [c for c in ["cap", "floor"] if c in train_df.columns]
-    future = future.merge(
-        train_df.drop(columns=drop_cols),
-        on="ds",
-        how="left"
-    )
+    future = future.merge(train_df.drop(columns=drop_cols), on="ds", how="left")
 
-    # Forecast regressor futures and fill
+    # forecast FUTURE regressors on MODEL grid
     if periods and periods > 0:
         if s is None:
-            s = _align_next_step(last_hist, freq)
+            s = _align_next_step(last_hist, mod_freq)
         if e is None:
-            e = pd.date_range(start=s, periods=periods, freq=freq)[-1]
+            e = pd.date_range(start=s, periods=periods, freq=mod_freq)[-1]
 
         reg_future = _forecast_regressors_future(
             timeseries_dir=ts_dir, regs=regressors,
             station_code=station_code, station_id=station_id,
-            freq=freq, agg=agg,
+            freq=mod_freq, agg=agg,
             train_start=train_start, train_end=train_end,
             fcst_start=s, fcst_end=e,
+            strategy=regressor_future_strategy,
+            ma_window=regressor_future_ma_window,
+            linear_window=regressor_future_linear_window,
+            prophet_cp_scale=regressor_future_prophet_cp_scale,
+            prophet_disable_seasonality=regressor_future_prophet_disable_seasonality,
         )
         future = future.merge(reg_future, on="ds", how="left", suffixes=("", "_fcst"))
         for r in regressors:
@@ -301,20 +353,20 @@ def forecast_with_regressors(
                 future[r] = future[r].combine_first(future[f"{r}_fcst"])
         future = future.drop(columns=[c for c in future.columns if c.endswith("_fcst")])
 
-    # Ensure bounds columns exist (no suffix collisions)
+    # ensure bounds present
     if use_bounds:
         if (cap_val != float("inf")) and ("cap" not in future.columns):
             future["cap"] = cap_val
         if "floor" not in future.columns:
             future["floor"] = floor_val
 
-    # Optional: smooth regressors in FUTURE (trailing window; no leakage)
+    # optional smoothing (future)
     if smooth_regressors and smooth_window > 1:
         future = future.sort_values("ds")
         for r in regressors:
             future[r] = future[r].rolling(window=smooth_window, min_periods=1).mean()
 
-    # FINAL GUARD: Prophet forbids NaNs in regressors
+    # NaN guard
     nan_cols = [r for r in regressors if r not in future.columns or future[r].isna().any()]
     if nan_cols:
         for r in nan_cols:
@@ -331,36 +383,50 @@ def forecast_with_regressors(
                 )
             )
 
-    # ---------- 5) Predict + clip ----------
+    # ---- 5) predict on MODEL grid + clip to requested MODEL window ----
     fcst = m.predict(future)
     if s is not None or e is not None:
         s_eff = s if s is not None else fcst["ds"].min()
         e_eff = e if e is not None else fcst["ds"].max()
         fcst = fcst.loc[fcst["ds"].between(s_eff, e_eff, inclusive="both")]
 
-    result = fcst[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
-
+    result_model = fcst[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
     if use_bounds:
         lo = floor_val if floor_val is not None else -float("inf")
         hi = cap_val if cap_val is not None else float("inf")
         for c in ["yhat", "yhat_lower", "yhat_upper"]:
-            result[c] = result[c].clip(lower=lo, upper=hi)
+            result_model[c] = result_model[c].clip(lower=lo, upper=hi)
 
-    # ---------- 6) Save CSV + data.json (actuals, metrics) ----------
+    # ---- 6) UPSAMPLE to OUTPUT grid (if different) ----
+    if mod_freq != freq:
+        out_index = pd.date_range(start=result_model["ds"].min(), end=result_model["ds"].max(), freq=freq)
+        res = result_model.set_index("ds").reindex(out_index)
+        for c in ["yhat", "yhat_lower", "yhat_upper"]:
+            res[c] = res[c].interpolate(method="time").ffill().bfill()
+        result_out = res.reset_index().rename(columns={"index": "ds"})
+    else:
+        result_out = result_model.copy()
+
+    # ---- 7) save csv + data.json (metrics on MODEL grid; daily actuals for plots) ----
     if write_to_disk:
+        # CSV (on OUTPUT grid)
         tag = "with_" + "+".join(regressors) if regressors else "univariate"
-        (out_dir / f"{target}__{tag}.csv").write_text(result.to_csv(index=False), encoding="utf-8")
+        (out_dir / f"{target}__{tag}.csv").write_text(result_out.to_csv(index=False), encoding="utf-8")
 
-        x_min, x_max = pd.to_datetime(result["ds"].min()), pd.to_datetime(result["ds"].max())
+        # actuals aligned to OUTPUT window (for plots)
+        x_min, x_max = pd.to_datetime(result_out["ds"].min()), pd.to_datetime(result_out["ds"].max())
         raw_target = _read_param_csv(ts_dir, target)
         raw_target = _filter_station(raw_target, station_code=station_code, station_id=station_id)
         raw_target = _apply_date_range(raw_target, start=x_min, end=x_max, col="ds")
-        actuals = _aggregate(raw_target, freq=freq, how=agg)
         actuals_daily = _build_daily_actuals(raw_target, start=x_min, end=x_max, agg=agg, fill="ffill_bfill", fill_limit=None)
 
+        # accuracy on MODEL grid (meaningful, non-noisy)
+        raw_for_model = _apply_date_range(_read_param_csv(ts_dir, target), start=result_model["ds"].min(), end=result_model["ds"].max(), col="ds")
+        raw_for_model = _filter_station(raw_for_model, station_code=station_code, station_id=station_id)
+        actuals_model = _aggregate(raw_for_model, freq=mod_freq, how=agg)
         acc_stats = _compute_accuracy_within_tolerance(
-            pred=result[["ds", "yhat"]],
-            actuals_on_grid=actuals[["ds", "y"]],
+            pred=result_model[["ds", "yhat"]],
+            actuals_on_grid=actuals_model[["ds", "y"]],
             tolerance=accuracy_tolerance,
         )
 
@@ -381,11 +447,13 @@ def forecast_with_regressors(
             "station_code": station_code,
             "station_id": station_id,
             "settings": {
-                "freq": freq, "agg": agg, "growth": model_growth,
+                "freq": freq,                 # OUTPUT grid
+                "model_freq": mod_freq,       # MODEL grid
+                "agg": agg, "growth": model_growth,
                 "train_start": str(pd.to_datetime(train_start)) if train_start else None,
                 "train_end": str(pd.to_datetime(train_end)) if train_end else None,
-                "fcst_start": str(pd.to_datetime(result["ds"].min())),
-                "fcst_end": str(pd.to_datetime(result["ds"].max())),
+                "fcst_start": str(pd.to_datetime(result_out["ds"].min())),
+                "fcst_end": str(pd.to_datetime(result_out["ds"].max())),
                 "bounds": {"min": target_min, "max": target_max} if use_bounds else None,
                 "accuracy_tolerance": accuracy_tolerance,
                 "regressor_prior_scale": regressor_prior_scale,
@@ -395,29 +463,37 @@ def forecast_with_regressors(
                 "smooth_window": smooth_window,
                 "changepoint_prior_scale": changepoint_prior_scale,
                 "seasonality_prior_scale": seasonality_prior_scale,
+                "regressor_global_importance": regressor_global_importance,
+                "regressor_importance": regressor_importance or {},
+                "regressor_future_strategy": regressor_future_strategy,
+                "regressor_future_ma_window": regressor_future_ma_window,
+                "regressor_future_linear_window": regressor_future_linear_window,
+                "regressor_future_prophet_cp_scale": regressor_future_prophet_cp_scale,
+                "regressor_future_prophet_disable_seasonality": regressor_future_prophet_disable_seasonality,
             },
+            # save predictions on OUTPUT grid (daily if freq='D')
             "predictions": [
                 {"ds": pd.to_datetime(r.ds).isoformat(),
                  "yhat": float(r.yhat),
                  "yhat_lower": float(r.yhat_lower),
                  "yhat_upper": float(r.yhat_upper)}
-                for r in result.itertuples(index=False)
+                for r in result_out.itertuples(index=False)
             ],
-            "actuals": [
-                {"ds": pd.to_datetime(r.ds).isoformat(), "y": float(r.y)}
-                for r in actuals.itertuples(index=False)
-            ],
+            # daily actuals for plotting
             "actuals_daily": [
                 {"ds": pd.to_datetime(r.ds).isoformat(), "y": (None if pd.isna(r.y) else float(r.y))}
                 for r in actuals_daily.itertuples(index=False)
             ],
+            # accuracy on MODEL grid
             "metrics": {
                 f"within_{int(accuracy_tolerance*100)}pct": acc_stats
             },
         })
         data_path.write_text(json.dumps(blob, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return result
+    # return OUTPUT-grid forecast
+    return result_out
+
 
 
 
