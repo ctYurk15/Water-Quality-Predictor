@@ -215,7 +215,7 @@ def render_from_json(
     _plot_line(
         act_plot,
         "ds", "y",
-        "Actuals", subtitle,
+        "Actuals", '',
         fp_actuals, xlim
     )
 
