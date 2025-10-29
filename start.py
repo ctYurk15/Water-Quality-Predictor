@@ -61,23 +61,23 @@ match action:
         min_val = input("Minimum value (default - 0): ").strip()
         target_min = 0.0
         if min_val != "":
-            target_min = float(target_min)
+            target_min = float(min_val)
 
         max_val = input("Maximum value (default - 6): ").strip()
         target_max = 6.0
         if max_val != "":
-            target_max = float(target_max)
+            target_max = float(max_val)
 
 
         forecast_name = input("Forecast name: ").strip()
 
         fcst = forecast_with_regressors(
             timeseries_dir=Timeseries.fullPath(timeseries_name),
-            target="Azot",
+            target="SPAR",
             #regressors=["Amoniy"],
-            regressors=["Amoniy", "Atrazin"],
+            #regressors=["Amoniy", "Atrazin"],
             #regressors=["Amoniy", "Atrazin", "BSK5", "Fosfat", "Hlorid"],
-            #regressors=[],
+            regressors=[],
             station_code=None,              # or "...", optional
             station_id=None,                # or "26853", optional
             freq="D", 
