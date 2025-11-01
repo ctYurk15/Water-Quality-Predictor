@@ -1,0 +1,98 @@
+import tkinter as tk
+from tkinter import ttk
+from datetime import datetime
+from theme import BG_PANEL, RED_BG, PURPLE_BG
+
+class ModelsView(ttk.Frame):
+    title = "Моделі"
+
+    def __init__(self, master, on_add_click, on_edit_click):
+        """
+        on_edit_click(view, row_widget) -> викликається при натисканні ✎
+        """
+        super().__init__(master, style="BaseView.TFrame")
+        self.on_add_click = on_add_click
+        self.on_edit_click = on_edit_click
+        self.rows = []  # елементи: {"row": frame, "name_var": StringVar, "meta": dict}
+        self.row_idx = 0
+
+        ttk.Label(self, text=self.title, style="Head.TLabel").pack(anchor="n", pady=(18, 8))
+
+        columns = tk.Frame(self, bg=BG_PANEL); columns.pack(fill="both", expand=True)
+        columns.grid_columnconfigure(0, minsize=70)
+        columns.grid_columnconfigure(1, weight=1)
+        columns.grid_rowconfigure(0, weight=1)
+
+        tk.Button(columns, text="＋", font=("", 16, "bold"),
+                  width=3, height=1, bg=PURPLE_BG, fg="#3f3356",
+                  relief="raised", bd=1, command=self.on_add_click)\
+          .grid(row=0, column=0, sticky="n", padx=(18, 8), pady=(24, 0))
+
+        list_container = tk.Frame(columns, bg=BG_PANEL)
+        list_container.grid(row=0, column=1, sticky="nsew", padx=(0, 24), pady=(8, 24))
+        list_container.grid_rowconfigure(0, weight=1)
+        list_container.grid_columnconfigure(0, weight=1)
+
+        self.canvas = tk.Canvas(list_container, bg=BG_PANEL, highlightthickness=0)
+        self.vsb = ttk.Scrollbar(list_container, orient="vertical", command=self.canvas.yview)
+        self.list_frame = ttk.Frame(self.canvas, style="List.TFrame")
+        self.list_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self._canvas_win_id = self.canvas.create_window((0, 0), window=self.list_frame, anchor="nw", width=1)
+        self.canvas.configure(yscrollcommand=self.vsb.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.vsb.grid(row=0, column=1, sticky="ns")
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._canvas_win_id, width=self.canvas.winfo_width()))
+
+        tk.Frame(self.list_frame, bg=BG_PANEL, height=6).grid(row=0, column=0, sticky="ew")
+        self.list_frame.grid_columnconfigure(0, weight=1)
+
+    # ---- public API ---------------------------------------------------------
+    def add_row(self, name, meta=None):
+        row = tk.Frame(self.list_frame, bg=BG_PANEL)
+        row.grid(row=self.row_idx + 1, column=0, sticky="ew", pady=8, padx=(24, 24))
+        self.list_frame.grid_columnconfigure(0, weight=1)
+
+        name_var = tk.StringVar(value=name)
+        ttk.Entry(row, textvariable=name_var, width=60).grid(row=0, column=0, sticky="ew")
+        row.grid_columnconfigure(0, weight=1)
+
+        ttk.Label(row, text=datetime.now().strftime("%d.%m.%Y %H:%M"),
+                  style="Item.TLabel").grid(row=0, column=1, padx=10)
+
+        tk.Button(row, text="✎", width=3, bg="#FFE6CC", fg="#6b4b00",
+                  bd=1, relief="raised",
+                  command=lambda r=row: self.on_edit_click(self, r)).grid(row=0, column=2, padx=(0,6))
+        tk.Button(row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
+                  bd=1, relief="raised",
+                  command=lambda r=row: self._remove_row(r)).grid(row=0, column=3)
+
+        self.rows.append({"row": row, "name_var": name_var, "meta": meta or {}})
+        self.row_idx += 1
+
+    def get_row_data(self, row_widget):
+        """Повертає (name:str, meta:dict) для конкретного рядка."""
+        for item in self.rows:
+            if item["row"] is row_widget:
+                return item["name_var"].get(), dict(item["meta"])
+        return "", {}
+
+    def set_row_data(self, row_widget, *, name=None, meta=None):
+        """Оновлює назву/метадані рядка."""
+        for item in self.rows:
+            if item["row"] is row_widget:
+                if name is not None:
+                    item["name_var"].set(name)
+                if meta is not None:
+                    item["meta"] = dict(meta)
+                break
+
+    # ---- internals ----------------------------------------------------------
+    def _remove_row(self, row_widget):
+        for i, item in enumerate(self.rows):
+            if item["row"] is row_widget:
+                item["row"].destroy()
+                self.rows.pop(i)
+                break
+        for idx, it in enumerate(self.rows, start=1):
+            it["row"].grid_configure(row=idx)
+        self.row_idx = len(self.rows)
