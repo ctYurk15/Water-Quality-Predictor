@@ -9,7 +9,8 @@ STATE_FILE = WORKSPACE / "state.json"
 DEFAULT_STATE = {
     "timeseries": [],   # [{name, files}]
     "models": [],       # [{name, meta}]
-    "forecasts": []     # [{name, model, parameter, train_from, train_to, prob, created_at}]
+    "forecasts": [],     # [{name, model, parameter, train_from, train_to, prob, created_at}]
+    "visualizations": []   # [{forecast_name, color, created_at}]
 }
 
 def ensure_workspace() -> None:

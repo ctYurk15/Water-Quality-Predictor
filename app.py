@@ -8,6 +8,10 @@ from state import load_state, save_state
 from dialogs.model_form import AddOrEditModelDialog
 from views.forecasts_view import ForecastsView
 from dialogs.forecast_form import AddForecastDialog
+from dialogs.visualization_form import ChooseForecastDialog
+from dialogs.visualization_create import CreateVisualizationDialog
+from dialogs.visualization_viewer import VisualizationViewer
+from views.visualization_view import VisualizationsView
 
 APP_W, APP_H = 1280, 720  # 720p
 
@@ -70,13 +74,17 @@ class App(tk.Tk):
         )
         self.btn_models.pack(padx=16, pady=8, anchor="n", fill="x")
 
-        # <<< ОЦЕ МАЄ БУТИ >>> 
         self.btn_forecasts = tk.Button(
             self.left, text="Передбачення", bg=BLUE_BG, activebackground=BLUE_BG,
             relief="groove", bd=2, padx=14, pady=10,
             command=lambda: self.show_view("forecasts")
         )
         self.btn_forecasts.pack(padx=16, pady=8, anchor="n", fill="x")
+
+        self.btn_viz = tk.Button(self.left, text="Візуалізація", bg=BLUE_BG, activebackground=BLUE_BG,
+                         relief="groove", bd=2, padx=14, pady=10,
+                         command=lambda: self.show_view("viz"))
+        self.btn_viz.pack(padx=16, pady=8, anchor="n", fill="x")
 
         # правий стек екранів
         self.stack = tk.Frame(self, bg=BG_PANEL)
@@ -102,14 +110,23 @@ class App(tk.Tk):
         self.forecasts_view = ForecastsView(self.stack, on_add_click=self._add_forecast_modal, on_rows_changed=self._save_state)
         self.forecasts_view.place(relx=0, rely=0, relwidth=1, relheight=1)
 
+        self.visualization_view = VisualizationsView(
+            self.stack,
+            on_add_click=self._viz_create_modal,
+            on_view_click=self._viz_open_viewer,
+            on_rows_changed=self._save_state
+        )
+        self.visualization_view.place(relx=0, rely=0, relwidth=1, relheight=1)
 
     def show_view(self, key: str):
         if key == "timeseries":
             self.ts_view.lift()
         elif key == "models":
             self.models_view.lift()
-        else:
+        elif key == "forecasts":
             self.forecasts_view.lift()
+        else:  # "viz"
+            self.visualization_view.lift()
 
     # ---------- Actions used by views ----------
     def _open_add_ts(self):
@@ -171,12 +188,49 @@ class App(tk.Tk):
         AddForecastDialog(self, on_save=on_save, model_names=model_names,
                         parameter_options=["A", "Azot", "Ammonium", "SPAR"])
 
+    def _open_viz_modal(self):
+        # імена передбачень беремо з екрана 'Передбачення'
+        forecast_names = [it.get("name","") for it in self.forecasts_view.export_state()]
+        if not forecast_names:
+            from tkinter import messagebox
+            messagebox.showinfo("Візуалізація", "Немає передбачень. Спершу створіть їх на відповідній вкладці.")
+            return
+
+        def on_save(payload):
+            # оновлюємо картку вгорі і одразу показуємо графік
+            self.visualization_view.set_selection(payload["forecast_name"], created_at="")
+            self.visualization_view.render_plot()
+
+        ChooseForecastDialog(self, on_save=on_save, forecast_names=forecast_names)
+
+    def _viz_create_modal(self):
+        # імена передбачень беремо з екрана 'Передбачення'
+        forecast_names = [d.get("name","") for d in self.forecasts_view.export_state()]
+        if not forecast_names:
+            from tkinter import messagebox
+            messagebox.showinfo("Візуалізація", "Немає передбачень для візуалізації.")
+            return
+
+        def on_save(viz):
+            self.visualization_view.add_row(viz)
+            self._save_state()
+
+        CreateVisualizationDialog(self, on_save=on_save, forecast_names=forecast_names)
+
+    def _viz_open_viewer(self, viz: dict):
+        if not viz or not viz.get("forecast_name"):
+            from tkinter import messagebox
+            messagebox.showinfo("Візуалізація", "Виберіть візуалізацію.")
+            return
+        VisualizationViewer(self, title=viz.get("forecast_name"), color=viz.get("color") or "#1f77b4")
+
 
     def _collect_state(self):
         return {
             "timeseries": self.ts_view.export_state(),
             "models": self.models_view.export_state(),
             "forecasts": self.forecasts_view.export_state(),
+            "visualizations": self.visualization_view.export_state(),  # <—
         }
 
     def _load_state(self):
@@ -184,6 +238,8 @@ class App(tk.Tk):
         self.ts_view.import_state(state.get("timeseries"))
         self.models_view.import_state(state.get("models"))
         self.forecasts_view.import_state(state.get("forecasts"))
+        self.visualization_view.import_state(state.get("visualizations"))  # <—
+
         # опціональні демо при першому запуску:
         if not state.get("forecasts"):
             self.forecasts_view.add_row({
