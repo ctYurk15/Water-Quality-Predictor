@@ -1,25 +1,25 @@
 import tkinter as tk
 from tkinter import ttk
-from datetime import datetime
 from theme import BG_PANEL, RED_BG, PURPLE_BG
 
-class TimeseriesView(ttk.Frame):
+class ForecastsView(ttk.Frame):
     """
-    Екран 'Часові ряди'.
+    Екран 'Передбачення'.
     - on_add_click: викликається кнопкою ＋
-    - on_rows_changed: викликається після дод/видал/редаг назви
+    - on_rows_changed: збереження після дод/видал
     """
-    title = "Часові ряди"
+    title = "Передбачення"
 
     def __init__(self, master, on_add_click, on_rows_changed=None):
         super().__init__(master, style="BaseView.TFrame")
         self.on_add_click = on_add_click
         self.on_rows_changed = on_rows_changed or (lambda: None)
+        self.rows = []    # [{row, data_dict}]
+        self.row_idx = 0
 
         ttk.Label(self, text=self.title, style="Head.TLabel").pack(anchor="n", pady=(18, 8))
 
-        columns = tk.Frame(self, bg=BG_PANEL)
-        columns.pack(fill="both", expand=True)
+        columns = tk.Frame(self, bg=BG_PANEL); columns.pack(fill="both", expand=True)
         columns.grid_columnconfigure(0, minsize=70)
         columns.grid_columnconfigure(1, weight=1)
         columns.grid_rowconfigure(0, weight=1)
@@ -27,7 +27,7 @@ class TimeseriesView(ttk.Frame):
         tk.Button(columns, text="＋", font=("", 16, "bold"),
                   width=3, height=1, bg=PURPLE_BG, fg="#3f3356",
                   relief="raised", bd=1, command=self.on_add_click)\
-          .grid(row=0, column=0, sticky="n", padx=(18, 8), pady=(24, 0))
+            .grid(row=0, column=0, sticky="n", padx=(18, 8), pady=(24, 0))
 
         list_container = tk.Frame(columns, bg=BG_PANEL)
         list_container.grid(row=0, column=1, sticky="nsew", padx=(0, 24), pady=(8, 24))
@@ -40,73 +40,72 @@ class TimeseriesView(ttk.Frame):
         self.list_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self._canvas_win_id = self.canvas.create_window((0, 0), window=self.list_frame, anchor="nw", width=1)
         self.canvas.configure(yscrollcommand=self.vsb.set)
+
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.vsb.grid(row=0, column=1, sticky="ns")
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._canvas_win_id, width=self.canvas.winfo_width()))
-
-        self.row_idx = 0
-        self.rows = []  # [{row, name_var, files}]
 
         tk.Frame(self.list_frame, bg=BG_PANEL, height=6).grid(row=0, column=0, sticky="ew")
         self.list_frame.grid_columnconfigure(0, weight=1)
 
     # ---- API ----
-    def add_row(self, name, files=None):
+    def add_row(self, data: dict):
+        """
+        data = {name, prob, model, parameter, train_from, train_to, created_at}
+        """
+        # Рядок списку: 2 колонки — [білий контейнер][кнопка ✖]
         row = tk.Frame(self.list_frame, bg=BG_PANEL)
         row.grid(row=self.row_idx + 1, column=0, sticky="ew", pady=6, padx=(24, 24))
-        self.list_frame.grid_columnconfigure(0, weight=1)
+        row.grid_columnconfigure(0, weight=1)  # контейнер розтягується
+        row.grid_columnconfigure(1, weight=0)
 
-        # Білий контейнер для назви
-        name_container = tk.Frame(row, bg="white", bd=1, relief="solid")
-        tk.Label(name_container, text=name, bg="white", anchor="w").pack(fill="x", padx=4, pady=2)
-        name_container.grid(row=0, column=0, sticky="ew")
-        row.grid_columnconfigure(0, weight=1)
+        # Білий контейнер-картка
+        box = tk.Frame(row, bg="white", bd=1, relief="solid", padx=6, pady=4)
+        box.grid(row=0, column=0, sticky="ew")
 
-        ttk.Label(row, text=datetime.now().strftime("%d.%m.%Y %H:%M"),
-                style="Item.TLabel").grid(row=0, column=1, padx=10)
+        # Вміст картки (як раніше)
+        tk.Label(box, text=f"{data.get('name','')}", bg="white", anchor="w").grid(row=0, column=0, sticky="w")
+        tk.Label(box, text=f"{str(data.get('prob','')).strip()}%", bg="white", anchor="w").grid(row=1, column=0, sticky="w")
 
-        tk.Button(row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
-                bd=1, relief="raised", command=lambda r=row: self._remove_row(r)).grid(row=0, column=2)
+        tk.Label(box, text=data.get("model",""), bg="white").grid(row=0, column=1, rowspan=2, padx=20)
+        tk.Label(box, text=data.get("parameter",""), bg="white").grid(row=0, column=2, rowspan=2, padx=20)
 
-        self.rows.append({"row": row, "name": name, "files": list(files or [])})
+        period = tk.Frame(box, bg="white")
+        period.grid(row=0, column=3, rowspan=2, padx=20)
+        tk.Label(period, text=data.get("train_from",""), bg="white").pack(anchor="w")
+        tk.Label(period, text=data.get("train_to",""), bg="white").pack(anchor="w")
+
+        tk.Label(box, text=data.get("created_at",""), bg="white").grid(row=0, column=4, rowspan=2, padx=20)
+
+        # Кнопка видалення — ОКРЕМО від картки
+        del_btn = tk.Button(
+            row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
+            bd=1, relief="raised", command=lambda r=row: self._remove_row(r)
+        )
+        del_btn.grid(row=0, column=1, padx=(8, 0), pady=0, sticky="n")  # прилягає справа до картки
+
+        # Зберігаємо
+        self.rows.append({"row": row, "data": dict(data)})
         self.row_idx += 1
         self.on_rows_changed()
 
+
     def export_state(self):
-        out = []
-        for it in self.rows:
-            # підтримуємо обидва формати (старий name_var та новий name)
-            if "name" in it:
-                name = it["name"]
-            elif "name_var" in it:
-                try:
-                    name = it["name_var"].get()
-                except Exception:
-                    name = ""
-            else:
-                name = ""
-            out.append({"name": name, "files": it.get("files", [])})
-        return out
+        return [it["data"] for it in self.rows]
 
     def import_state(self, items):
-        # очистити поточний список
         for it in list(self.rows):
             it["row"].destroy()
-        self.rows.clear()
-        self.row_idx = 0
-        # завантажити
+        self.rows.clear(); self.row_idx = 0
         for obj in items or []:
-            self.add_row(obj.get("name", ""), files=obj.get("files", []))
+            self.add_row(obj)
         self.on_rows_changed()
-
 
     # ---- internals ----
     def _remove_row(self, row_widget):
         for i, it in enumerate(self.rows):
             if it["row"] is row_widget:
-                it["row"].destroy()
-                self.rows.pop(i)
-                break
+                it["row"].destroy(); self.rows.pop(i); break
         for idx, it in enumerate(self.rows, start=1):
             it["row"].grid_configure(row=idx)
         self.row_idx = len(self.rows)

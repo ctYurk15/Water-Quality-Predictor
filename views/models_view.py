@@ -4,16 +4,20 @@ from datetime import datetime
 from theme import BG_PANEL, RED_BG, PURPLE_BG
 
 class ModelsView(ttk.Frame):
+    """
+    Екран 'Моделі'.
+    - on_add_click: відкрити форму додавання
+    - on_edit_click(view, row_widget): відкрити форму редагування
+    - on_rows_changed: викликається після дод/видал/редаг назви
+    """
     title = "Моделі"
 
-    def __init__(self, master, on_add_click, on_edit_click):
-        """
-        on_edit_click(view, row_widget) -> викликається при натисканні ✎
-        """
+    def __init__(self, master, on_add_click, on_edit_click, on_rows_changed=None):
         super().__init__(master, style="BaseView.TFrame")
         self.on_add_click = on_add_click
         self.on_edit_click = on_edit_click
-        self.rows = []  # елементи: {"row": frame, "name_var": StringVar, "meta": dict}
+        self.on_rows_changed = on_rows_changed or (lambda: None)
+        self.rows = []   # [{row, name_var, meta}]
         self.row_idx = 0
 
         ttk.Label(self, text=self.title, style="Head.TLabel").pack(anchor="n", pady=(18, 8))
@@ -46,53 +50,76 @@ class ModelsView(ttk.Frame):
         tk.Frame(self.list_frame, bg=BG_PANEL, height=6).grid(row=0, column=0, sticky="ew")
         self.list_frame.grid_columnconfigure(0, weight=1)
 
-    # ---- public API ---------------------------------------------------------
+    # ---- API ----
     def add_row(self, name, meta=None):
         row = tk.Frame(self.list_frame, bg=BG_PANEL)
-        row.grid(row=self.row_idx + 1, column=0, sticky="ew", pady=8, padx=(24, 24))
+        row.grid(row=self.row_idx + 1, column=0, sticky="ew", pady=6, padx=(24, 24))
         self.list_frame.grid_columnconfigure(0, weight=1)
 
-        name_var = tk.StringVar(value=name)
-        ttk.Entry(row, textvariable=name_var, width=60).grid(row=0, column=0, sticky="ew")
+        # Білий контейнер
+        box = tk.Frame(row, bg="white", bd=1, relief="solid")
+        name_lbl = tk.Label(box, text=name, bg="white", anchor="w")
+        name_lbl.pack(fill="x", padx=4, pady=2)
+        box.grid(row=0, column=0, sticky="ew")
         row.grid_columnconfigure(0, weight=1)
 
         ttk.Label(row, text=datetime.now().strftime("%d.%m.%Y %H:%M"),
-                  style="Item.TLabel").grid(row=0, column=1, padx=10)
+                style="Item.TLabel").grid(row=0, column=1, padx=10)
 
         tk.Button(row, text="✎", width=3, bg="#FFE6CC", fg="#6b4b00",
-                  bd=1, relief="raised",
-                  command=lambda r=row: self.on_edit_click(self, r)).grid(row=0, column=2, padx=(0,6))
+                bd=1, relief="raised", command=lambda r=row: self.on_edit_click(self, r)).grid(row=0, column=2, padx=(0,6))
         tk.Button(row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
-                  bd=1, relief="raised",
-                  command=lambda r=row: self._remove_row(r)).grid(row=0, column=3)
+                bd=1, relief="raised", command=lambda r=row: self._remove_row(r)).grid(row=0, column=3)
 
-        self.rows.append({"row": row, "name_var": name_var, "meta": meta or {}})
+        self.rows.append({"row": row, "name": name, "name_label": name_lbl, "meta": dict(meta or {})})
         self.row_idx += 1
+        self.on_rows_changed()
 
     def get_row_data(self, row_widget):
-        """Повертає (name:str, meta:dict) для конкретного рядка."""
-        for item in self.rows:
-            if item["row"] is row_widget:
-                return item["name_var"].get(), dict(item["meta"])
+        for it in self.rows:
+            if it["row"] is row_widget:
+                return it["name_var"].get(), dict(it["meta"])
         return "", {}
 
     def set_row_data(self, row_widget, *, name=None, meta=None):
-        """Оновлює назву/метадані рядка."""
-        for item in self.rows:
-            if item["row"] is row_widget:
+        for it in self.rows:
+            if it["row"] is row_widget:
                 if name is not None:
-                    item["name_var"].set(name)
+                    it["name"] = name
+                    if it.get("name_label"):
+                        it["name_label"].config(text=name)
                 if meta is not None:
-                    item["meta"] = dict(meta)
+                    it["meta"] = dict(meta)
+                self.on_rows_changed()
                 break
 
-    # ---- internals ----------------------------------------------------------
+    def export_state(self):
+        return [{"name": it.get("name") or (it.get("name_var").get() if it.get("name_var") else ""),
+                "meta": it.get("meta", {})}
+                for it in self.rows]
+
+    def import_state(self, items):
+        for it in list(self.rows):
+            it["row"].destroy()
+        self.rows.clear()
+        self.row_idx = 0
+        for obj in items or []:
+            self.add_row(obj.get("name",""), meta=obj.get("meta", {}))
+        self.on_rows_changed()
+
+
+    # ---- internals ----
     def _remove_row(self, row_widget):
-        for i, item in enumerate(self.rows):
-            if item["row"] is row_widget:
-                item["row"].destroy()
+        for i, it in enumerate(self.rows):
+            if it["row"] is row_widget:
+                it["row"].destroy()
                 self.rows.pop(i)
                 break
         for idx, it in enumerate(self.rows, start=1):
             it["row"].grid_configure(row=idx)
         self.row_idx = len(self.rows)
+        self.on_rows_changed()
+
+    def get_names(self):
+        return [it.get("name") or (it.get("name_var").get() if it.get("name_var") else "") for it in self.rows]
+

@@ -4,3 +4,4 @@ forecasts/*/*.csv
 forecasts/*/*.png
 forecasts/*/*.json
 __pycache__
+workspace/state.json
