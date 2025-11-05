@@ -45,13 +45,13 @@ class TimeseriesView(ttk.Frame):
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._canvas_win_id, width=self.canvas.winfo_width()))
 
         self.row_idx = 0
-        self.rows = []  # [{row, name_var, files}]
+        self.rows = []  # [{row, name_var}]
 
         tk.Frame(self.list_frame, bg=BG_PANEL, height=6).grid(row=0, column=0, sticky="ew")
         self.list_frame.grid_columnconfigure(0, weight=1)
 
     # ---- API ----
-    def add_row(self, name, files=None):
+    def add_row(self, name, time):
         row = tk.Frame(self.list_frame, bg=BG_PANEL)
         row.grid(row=self.row_idx + 1, column=0, sticky="ew", pady=6, padx=(24, 24))
         self.list_frame.grid_columnconfigure(0, weight=1)
@@ -62,41 +62,25 @@ class TimeseriesView(ttk.Frame):
         name_container.grid(row=0, column=0, sticky="ew")
         row.grid_columnconfigure(0, weight=1)
 
-        ttk.Label(row, text=datetime.now().strftime("%d.%m.%Y %H:%M"),
+        ttk.Label(row, text=time.strftime("%d.%m.%Y %H:%M"),
                 style="Item.TLabel").grid(row=0, column=1, padx=10)
 
         tk.Button(row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
                 bd=1, relief="raised", command=lambda r=row: self._remove_row(r)).grid(row=0, column=2)
 
-        self.rows.append({"row": row, "name": name, "files": list(files or [])})
+        self.rows.append({"row": row, "name": name})
         self.row_idx += 1
         self.on_rows_changed()
 
-    def export_state(self):
-        out = []
-        for it in self.rows:
-            # підтримуємо обидва формати (старий name_var та новий name)
-            if "name" in it:
-                name = it["name"]
-            elif "name_var" in it:
-                try:
-                    name = it["name_var"].get()
-                except Exception:
-                    name = ""
-            else:
-                name = ""
-            out.append({"name": name, "files": it.get("files", [])})
-        return out
-
     def import_state(self, items):
-        # очистити поточний список
+        
         for it in list(self.rows):
             it["row"].destroy()
         self.rows.clear()
         self.row_idx = 0
-        # завантажити
-        for obj in items or []:
-            self.add_row(obj.get("name", ""), files=obj.get("files", []))
+        
+        for item in items or []:
+            self.add_row(item['name'], item['time'])
         self.on_rows_changed()
 
 

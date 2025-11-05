@@ -1,4 +1,5 @@
 import tkinter as tk
+import os
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from theme import BLUE_BG, BG_MAIN, RED_BG

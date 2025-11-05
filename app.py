@@ -1,4 +1,5 @@
 import tkinter as tk
+import datetime
 from tkinter import ttk, messagebox
 from theme import BG_MAIN, BG_PANEL, BLUE_BG, RED_BG, init_styles
 from views.timeseries_view import TimeseriesView
@@ -13,7 +14,10 @@ from dialogs.visualization_create import CreateVisualizationDialog
 from dialogs.visualization_viewer import VisualizationViewer
 from views.visualization_view import VisualizationsView
 
-APP_W, APP_H = 1280, 720  # 720p
+from src.timeseries import Timeseries
+from timeseries_builder import build_timeseries
+
+APP_W, APP_H = 1280, 720
 
 class App(tk.Tk):
     def __init__(self):
@@ -39,10 +43,10 @@ class App(tk.Tk):
     def _build_menubar(self):
         menubar = tk.Menu(self)
 
-        view_menu = tk.Menu(menubar, tearoff=0)
-        view_menu.add_command(label="Часові ряди", command=lambda: self.show_view("timeseries"))
-        view_menu.add_command(label="Моделі", command=lambda: self.show_view("models"))
-        menubar.add_cascade(label="Вигляд", menu=view_menu)
+        #view_menu = tk.Menu(menubar, tearoff=0)
+        #view_menu.add_command(label="Часові ряди", command=lambda: self.show_view("timeseries"))
+        #view_menu.add_command(label="Моделі", command=lambda: self.show_view("models"))
+        #menubar.add_cascade(label="Вигляд", menu=view_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Про програму", command=self._about)
@@ -131,9 +135,15 @@ class App(tk.Tk):
     # ---------- Actions used by views ----------
     def _open_add_ts(self):
         from dialogs.add_timeseries import AddTimeseriesDialog
+
         def on_save(name, files):
-            self.ts_view.add_row(name, files=files)
-            self._save_state()
+            self.ts_view.add_row(name, time=datetime.datetime.now())
+            result = build_timeseries(
+                datasets=files,
+                set_name=name,
+                out_root=Timeseries.file_path
+            )
+
         AddTimeseriesDialog(self, on_save=on_save)
 
 
@@ -227,7 +237,7 @@ class App(tk.Tk):
 
     def _collect_state(self):
         return {
-            "timeseries": self.ts_view.export_state(),
+            #"timeseries": self.ts_view.export_state(),
             "models": self.models_view.export_state(),
             "forecasts": self.forecasts_view.export_state(),
             "visualizations": self.visualization_view.export_state(),  # <—
@@ -235,7 +245,11 @@ class App(tk.Tk):
 
     def _load_state(self):
         state = load_state()
-        self.ts_view.import_state(state.get("timeseries"))
+        #self.ts_view.import_state(state.get("timeseries"))
+
+        timeseries = Timeseries.getItems()['directories']
+
+        self.ts_view.import_state(timeseries)
         self.models_view.import_state(state.get("models"))
         self.forecasts_view.import_state(state.get("forecasts"))
         self.visualization_view.import_state(state.get("visualizations"))  # <—
@@ -248,12 +262,11 @@ class App(tk.Tk):
                 "train_from":"01.01.2019", "train_to":"31.12.2019",
                 "created_at":"13.10.2025 18:10"
             })
-
-        # якщо хочеш мати стартові демо при першому запуску:
-        if not state.get("timeseries") and not state.get("models"):
-            self.ts_view.add_row("Timeseries_1_2010_2015", files=[])
-            self.ts_view.add_row("Timeseries_2_2010_2015", files=[])
-            self.models_view.add_row("Model_1_2020_2021_Azot", meta={"name":"Model_1_2020_2021_Azot"})
+            
+        #if not state.get("timeseries") and not state.get("models"):
+        #    self.ts_view.add_row("Timeseries_1_2010_2015", files=[])
+        #    self.ts_view.add_row("Timeseries_2_2010_2015", files=[])
+        #    self.models_view.add_row("Model_1_2020_2021_Azot", meta={"name":"Model_1_2020_2021_Azot"})
 
 
     def _save_state(self):
@@ -268,7 +281,7 @@ class App(tk.Tk):
     def _about(self):
         messagebox.showinfo("Про програму",
                             "ІС для прогнозування забруднень водних ресурсів України\n"
-                            "Каркас GUI (Tkinter).\n© Магістерський проєкт")
+                            "Каркас GUI (Tkinter).\n© Магістерський проект, автор - ctyurk15")
 
 if __name__ == "__main__":
     App().mainloop()

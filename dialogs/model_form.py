@@ -81,7 +81,7 @@ class AddOrEditModelDialog:
         r += 1
 
         # Навчання від–до
-        self._subheader(r, "Навчання на даних від - до", col=0); r += 1
+        self._subheader(r, "Навчання від - до", col=0); r += 1
         self.train_from = tk.StringVar(value=(initial or {}).get("train_from", "2003-01-01"))
         self.train_to   = tk.StringVar(value=(initial or {}).get("train_to",   "2005-12-31"))
         ttk.Entry(self.form, textvariable=self.train_from)\
@@ -91,7 +91,7 @@ class AddOrEditModelDialog:
         r += 1
 
         # Мін/макс
-        self._subheader(r, "Максимальні/мінімальні значення", col=2); r += 1
+        self._subheader(r, "Мінімум / максимум", col=2); r += 1
         self.min_value = tk.StringVar(value=(initial or {}).get("min_value", "0"))
         self.max_value = tk.StringVar(value=(initial or {}).get("max_value", "6"))
         ttk.Entry(self.form, textvariable=self.min_value)\

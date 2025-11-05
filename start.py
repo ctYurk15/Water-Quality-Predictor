@@ -1,5 +1,5 @@
-from app.dataset import Dataset
-from app.timeseries import Timeseries
+from src.dataset import Dataset
+from src.timeseries import Timeseries
 
 from timeseries_builder import build_timeseries
 from prophet_module import batch_forecast
@@ -16,6 +16,10 @@ print('3 - view prediction')
 
 action = int(input("\nYour choice: "))
 print("\n-----------------------------\n")
+
+timeseries = Timeseries.getItems()
+for dir1 in timeseries['directories']:
+    print(dir1)
 
 match action:
     case 1:
