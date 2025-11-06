@@ -1,5 +1,6 @@
 import tkinter as tk
 import datetime
+import threading
 from tkinter import ttk, messagebox
 from theme import BG_MAIN, BG_PANEL, BLUE_BG, RED_BG, init_styles
 from views.timeseries_view import TimeseriesView
@@ -13,6 +14,7 @@ from dialogs.visualization_form import ChooseForecastDialog
 from dialogs.visualization_create import CreateVisualizationDialog
 from dialogs.visualization_viewer import VisualizationViewer
 from views.visualization_view import VisualizationsView
+from dialogs.loading import LoadingWindow
 
 from src.timeseries import Timeseries
 from timeseries_builder import build_timeseries
@@ -137,12 +139,43 @@ class App(tk.Tk):
         from dialogs.add_timeseries import AddTimeseriesDialog
 
         def on_save(name, files):
-            self.ts_view.add_row(name, time=datetime.datetime.now())
-            result = build_timeseries(
-                datasets=files,
-                set_name=name,
-                out_root=Timeseries.file_path
-            )
+
+            lw = LoadingWindow(self, loading_text="Створення часового ряду "+name+"...")
+            lw.top.update_idletasks()
+
+            #send timeseries creation to another tread
+            def worker():
+                err = None
+                result = None
+                try:
+                    result = build_timeseries(
+                        datasets=files,
+                        set_name=name,
+                        out_root=Timeseries.file_path
+                    )
+                except Exception as e:
+                    err = e
+                finally:
+                    def finish():
+                        try:
+                            lw.top.destroy()
+                        except Exception:
+                            pass
+                        if err:
+                            messagebox.showerror("Помилка", str(err), parent=self)
+                        else:
+                            messagebox.showinfo("Готово", f"Ряд '{name}' створено.", parent=self)
+                            self.ts_view.add_row(name, time=datetime.datetime.now())
+
+                    self.after(0, finish)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+            #result = build_timeseries(
+            #    datasets=files,
+            #    set_name=name,
+            #    out_root=Timeseries.file_path
+            #)
 
         AddTimeseriesDialog(self, on_save=on_save)
 
@@ -153,13 +186,16 @@ class App(tk.Tk):
             self._save_state()
         #AddOrEditModelDialog(self, on_save=on_save)
 
+        timeseries = Timeseries.getEntries(False, True)
+        params = Timeseries.getParams()
+
         AddOrEditModelDialog(
             self,
             on_save=on_save,
             # за бажанням підставте реальні списки:
-            timeseries_options=None,
-            parameter_options=["A", "Azot", "Ammonium", "SPAR"],
-            regressor_options=["A", "Azot", "Ammonium", "SPAR"],
+            timeseries_options=timeseries,
+            parameter_options=params,
+            regressor_options=params,
         )
 
     def _edit_model_modal(self, view, row_widget):
@@ -176,13 +212,16 @@ class App(tk.Tk):
             self._save_state()
 
         try:
+            timeseries = Timeseries.getEntries(False, True)
+            params = Timeseries.getParams()
+
             AddOrEditModelDialog(
                 self,
                 on_save=on_save,
                 # при бажанні підстав реальні списки:
-                timeseries_options=None,
-                parameter_options=["A", "Azot", "Ammonium", "SPAR"],
-                regressor_options=["A", "Azot", "Ammonium", "SPAR"],
+                timeseries_options=timeseries,
+                parameter_options=params,
+                regressor_options=params,
                 initial={**cur_meta, "name": cur_name}
             )
         except Exception as e:
@@ -247,7 +286,7 @@ class App(tk.Tk):
         state = load_state()
         #self.ts_view.import_state(state.get("timeseries"))
 
-        timeseries = Timeseries.getItems()['directories']
+        timeseries = Timeseries.getEntries()
 
         self.ts_view.import_state(timeseries)
         self.models_view.import_state(state.get("models"))

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
 from theme import BG_PANEL, RED_BG, PURPLE_BG
+from src.timeseries import Timeseries
 
 class TimeseriesView(ttk.Frame):
     """
@@ -89,6 +90,7 @@ class TimeseriesView(ttk.Frame):
         for i, it in enumerate(self.rows):
             if it["row"] is row_widget:
                 it["row"].destroy()
+                Timeseries.delete(it['name'])
                 self.rows.pop(i)
                 break
         for idx, it in enumerate(self.rows, start=1):

@@ -16,13 +16,9 @@ class AddOrEditModelDialog:
         self.master = master
         self.on_save = on_save
 
-        self.timeseries_options = timeseries_options or [
-            "Timeseries_1_2003_",
-            "Timeseries_1_2003_2007",
-            "Timeseries_2003_2004",
-        ]
-        self.parameter_options = parameter_options or ["A", "Azot", "Ammonium", "SPAR"]
-        self.regressor_options = regressor_options or ["A", "Azot", "Ammonium", "SPAR"]
+        self.timeseries_options = timeseries_options or []
+        self.parameter_options = parameter_options or []
+        self.regressor_options = regressor_options or []
 
         self.top = tk.Toplevel(master)
         self.top.title("Нова модель" if not initial else "Редагувати модель")
@@ -69,15 +65,15 @@ class AddOrEditModelDialog:
         self._subheader(r, "Параметр", col=2); r += 1
 
         # Часовий ряд (listbox single)
-        self.ts_list = tk.Listbox(self.form, height=5, exportselection=False)
-        for item in self.timeseries_options: self.ts_list.insert("end", item)
-        self.ts_list.grid(row=r, column=0, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
+        self.ts_list = self._make_scroll_list(self.form, row=r, column=0, columnspan=2, height=6, padx=PADX, pady=(0,8))
+        for item in self.timeseries_options:
+            self.ts_list.insert("end", item)
 
         # Параметр (listbox single)
-        self.param_list = tk.Listbox(self.form, height=5, exportselection=False)
-        for p in self.parameter_options: self.param_list.insert("end", p)
+        self.param_list = self._make_scroll_list(self.form, row=r, column=2, columnspan=2, height=6, padx=PADX, pady=(0,8))
+        for p in self.parameter_options: 
+            self.param_list.insert("end", p)
         self.param_list.selection_set(0)
-        self.param_list.grid(row=r, column=2, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
         r += 1
 
         # Навчання від–до
@@ -104,9 +100,10 @@ class AddOrEditModelDialog:
         self._subheader(r, "Регресори", col=0)
         self._subheader(r, "Вага регресорів", col=2); r += 1
 
-        self.reg_list = tk.Listbox(self.form, selectmode="multiple", height=6, exportselection=False)
-        for rg in self.regressor_options: self.reg_list.insert("end", rg)
-        self.reg_list.grid(row=r, column=0, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
+        self.reg_list = self._make_scroll_list(self.form, row=r, column=0, columnspan=2, height=6, padx=PADX, pady=(0,8))
+        self.reg_list.config(selectmode="multiple")
+        for rg in self.regressor_options: 
+            self.reg_list.insert("end", rg)
 
         self.weights_frame = tk.Frame(self.form, bg=BLUE_BG)
         self.weights_frame.grid(row=r, column=2, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
@@ -188,3 +185,17 @@ class AddOrEditModelDialog:
         )
         self.top.grab_release(); self.top.destroy()
         self.on_save(payload)
+
+    def _make_scroll_list(self, parent, *, row, column, columnspan=2, height=6, padx=8, pady=(0,8)):
+        """Створює Listbox із вертикальним Scrollbar у фіксованій висоті."""
+        wrap = tk.Frame(parent, bg=BLUE_BG)
+        wrap.grid(row=row, column=column, columnspan=columnspan, sticky="nsew", padx=padx, pady=pady)
+
+        lb = tk.Listbox(wrap, height=height, exportselection=False)
+        lb.pack(side="left", fill="both", expand=True)
+
+        sb = ttk.Scrollbar(wrap, orient="vertical", command=lb.yview)
+        sb.pack(side="right", fill="y")
+
+        lb.configure(yscrollcommand=sb.set)
+        return lb

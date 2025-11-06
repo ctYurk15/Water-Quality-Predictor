@@ -76,18 +76,40 @@ class ModelsView(ttk.Frame):
         self.on_rows_changed()
 
     def get_row_data(self, row_widget):
+        """Повертає (name:str, meta:dict) для конкретного рядка.
+        Підтримує як новий формат (name), так і старий (name_var)."""
         for it in self.rows:
             if it["row"] is row_widget:
-                return it["name_var"].get(), dict(it["meta"])
+                # новий формат
+                if "name" in it and it["name"] is not None:
+                    name = it["name"]
+                # сумісність зі старим
+                elif "name_var" in it and it["name_var"] is not None:
+                    try:
+                        name = it["name_var"].get()
+                    except Exception:
+                        name = ""
+                else:
+                    name = ""
+                return name, dict(it.get("meta", {}))
         return "", {}
 
     def set_row_data(self, row_widget, *, name=None, meta=None):
         for it in self.rows:
             if it["row"] is row_widget:
                 if name is not None:
-                    it["name"] = name
-                    if it.get("name_label"):
-                        it["name_label"].config(text=name)
+                    # новий формат
+                    if "name" in it:
+                        it["name"] = name
+                        # якщо зберігали посилання на Label із назвою — оновимо текст
+                        if it.get("name_label"):
+                            it["name_label"].config(text=name)
+                    # сумісність: старий формат
+                    if it.get("name_var") is not None:
+                        try:
+                            it["name_var"].set(name)
+                        except Exception:
+                            pass
                 if meta is not None:
                     it["meta"] = dict(meta)
                 self.on_rows_changed()
