@@ -10,12 +10,13 @@ class ForecastsView(ttk.Frame):
     """
     title = "Передбачення"
 
-    def __init__(self, master, on_add_click, on_rows_changed=None):
+    def __init__(self, master, on_add_click, models_view, on_rows_changed=None):
         super().__init__(master, style="BaseView.TFrame")
         self.on_add_click = on_add_click
         self.on_rows_changed = on_rows_changed or (lambda: None)
         self.rows = []    # [{row, data_dict}]
         self.row_idx = 0
+        self.models_view = models_view
 
         ttk.Label(self, text=self.title, style="Head.TLabel").pack(anchor="n", pady=(18, 8))
 
@@ -51,7 +52,7 @@ class ForecastsView(ttk.Frame):
     # ---- API ----
     def add_row(self, data: dict):
         """
-        data = {name, prob, model, parameter, train_from, train_to, created_at}
+        data = {name, prob, model, forecast_from, forecast_to, created_at}
         """
         # Рядок списку: 2 колонки — [білий контейнер][кнопка ✖]
         row = tk.Frame(self.list_frame, bg=BG_PANEL)
@@ -67,13 +68,18 @@ class ForecastsView(ttk.Frame):
         tk.Label(box, text=f"{data.get('name','')}", bg="white", anchor="w").grid(row=0, column=0, sticky="w")
         tk.Label(box, text=f"{str(data.get('prob','')).strip()}%", bg="white", anchor="w").grid(row=1, column=0, sticky="w")
 
+        parameter = ''
+        selected_model = self.models_view.find_model_by_name(data.get("model",""))
+        if selected_model != {}:
+            parameter = selected_model.get('meta')['parameter']
+
         tk.Label(box, text=data.get("model",""), bg="white").grid(row=0, column=1, rowspan=2, padx=20)
-        tk.Label(box, text=data.get("parameter",""), bg="white").grid(row=0, column=2, rowspan=2, padx=20)
+        tk.Label(box, text=parameter, bg="white").grid(row=0, column=2, rowspan=2, padx=20)
 
         period = tk.Frame(box, bg="white")
         period.grid(row=0, column=3, rowspan=2, padx=20)
-        tk.Label(period, text=data.get("train_from",""), bg="white").pack(anchor="w")
-        tk.Label(period, text=data.get("train_to",""), bg="white").pack(anchor="w")
+        tk.Label(period, text=data.get("forecast_from",""), bg="white").pack(anchor="w")
+        tk.Label(period, text=data.get("forecast_to",""), bg="white").pack(anchor="w")
 
         tk.Label(box, text=data.get("created_at",""), bg="white").grid(row=0, column=4, rowspan=2, padx=20)
 

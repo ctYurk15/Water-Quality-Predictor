@@ -17,10 +17,6 @@ print('3 - view prediction')
 action = int(input("\nYour choice: "))
 print("\n-----------------------------\n")
 
-timeseries = Timeseries.getItems()
-for dir1 in timeseries['directories']:
-    print(dir1)
-
 match action:
     case 1:
         print('Input dataset(s) name(s) in `raw-datasets` folder. To stop, input empty name')

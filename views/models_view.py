@@ -129,6 +129,16 @@ class ModelsView(ttk.Frame):
             self.add_row(obj.get("name",""), meta=obj.get("meta", {}))
         self.on_rows_changed()
 
+    def find_model_by_name(self, search_name):
+        result = {}
+
+        for it in list(self.rows):
+            if it.get("name") == search_name:
+                result = it
+                break
+
+        return result
+
 
     # ---- internals ----
     def _remove_row(self, row_widget):

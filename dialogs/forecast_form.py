@@ -16,7 +16,7 @@ class AddForecastDialog:
         self.master = master
         self.on_save = on_save
         self.model_names = model_names or []
-        self.parameter_options = parameter_options or ["A", "Azot", "Ammonium", "SPAR"]
+        self.parameter_options = parameter_options or []
 
         self.top = tk.Toplevel(master)
         self.top.title("Нове передбачення")
@@ -43,14 +43,14 @@ class AddForecastDialog:
         if self.model_names: self.model_cmb.current(0)
         self.model_cmb.grid(row=3, column=0, sticky="ew", padx=PAD, pady=(0,8))
 
-        tk.Label(frm, text="Параметр", bg=BLUE_BG).grid(row=2, column=1, sticky="w", padx=PAD)
-        self.param_cmb = ttk.Combobox(frm, values=self.parameter_options, state="readonly")
-        self.param_cmb.current(0)
-        self.param_cmb.grid(row=3, column=1, sticky="ew", padx=PAD, pady=(0,8))
+        #tk.Label(frm, text="Параметр", bg=BLUE_BG).grid(row=2, column=1, sticky="w", padx=PAD)
+        #self.param_cmb = ttk.Combobox(frm, values=self.parameter_options, state="readonly")
+        #self.param_cmb.current(0)
+        #self.param_cmb.grid(row=3, column=1, sticky="ew", padx=PAD, pady=(0,8))
 
         tk.Label(frm, text="Період від – до", bg=BLUE_BG).grid(row=4, column=0, sticky="w", padx=PAD, pady=(4,0))
-        self.from_var = tk.StringVar(value="01.01.2019")
-        self.to_var   = tk.StringVar(value="31.12.2019")
+        self.from_var = tk.StringVar(value="2019-01-01")
+        self.to_var   = tk.StringVar(value="2019-12-31")
         ttk.Entry(frm, textvariable=self.from_var).grid(row=5, column=0, sticky="ew", padx=PAD)
         ttk.Entry(frm, textvariable=self.to_var).grid(row=5, column=1, sticky="ew", padx=PAD)
 
@@ -74,9 +74,9 @@ class AddForecastDialog:
         data = dict(
             name=name,
             model=self.model_cmb.get().strip(),
-            parameter=self.param_cmb.get().strip(),
-            train_from=self.from_var.get().strip(),
-            train_to=self.to_var.get().strip(),
+            #parameter=self.param_cmb.get().strip(),
+            forecast_from=self.from_var.get().strip(),
+            forecast_to=self.to_var.get().strip(),
             prob=self.prob_var.get().strip(),
             created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )

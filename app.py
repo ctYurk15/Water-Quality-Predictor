@@ -18,6 +18,7 @@ from dialogs.loading import LoadingWindow
 
 from src.timeseries import Timeseries
 from timeseries_builder import build_timeseries
+from prophet_multivar import forecast_with_regressors
 
 APP_W, APP_H = 1280, 720
 
@@ -113,7 +114,12 @@ class App(tk.Tk):
         )
         self.models_view.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        self.forecasts_view = ForecastsView(self.stack, on_add_click=self._add_forecast_modal, on_rows_changed=self._save_state)
+        self.forecasts_view = ForecastsView(
+            self.stack, 
+            on_add_click=self._add_forecast_modal, 
+            on_rows_changed=self._save_state,
+            models_view=self.models_view
+        )
         self.forecasts_view.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.visualization_view = VisualizationsView(
@@ -171,12 +177,6 @@ class App(tk.Tk):
 
             threading.Thread(target=worker, daemon=True).start()
 
-            #result = build_timeseries(
-            #    datasets=files,
-            #    set_name=name,
-            #    out_root=Timeseries.file_path
-            #)
-
         AddTimeseriesDialog(self, on_save=on_save)
 
 
@@ -231,11 +231,83 @@ class App(tk.Tk):
     def _add_forecast_modal(self):
         # список назв моделей зі списку models_view
         model_names = self.models_view.get_names()
+        params = Timeseries.getParams()
+
         def on_save(data):
-            self.forecasts_view.add_row(data)
             self._save_state()
+
+            selected_model = self.models_view.find_model_by_name(data['model'])
+            if selected_model != {}:
+                modal_meta = selected_model.get('meta')
+
+                regressors = {}
+                for param, value in modal_meta['weights'].items():
+                    regressors[param] = float(value)
+
+                accuracy = float(data['prob']) / 100
+
+                lw = LoadingWindow(self, loading_text="Передбачення даних параметру "+modal_meta['parameter']+"...")
+                lw.top.update_idletasks()
+
+                #send forecast to another tread
+                def worker():
+                    err = None
+                    result = None
+                    try:
+                        
+                        forecast_with_regressors(
+                            timeseries_dir=Timeseries.fullPath(modal_meta['timeseries']),
+                            target=modal_meta['parameter'],
+                            regressors=modal_meta['regressors'],
+                            station_code=None,              # or "...", optional
+                            station_id=None,                # or "26853", optional
+                            freq="D", 
+                            agg="mean", 
+                            growth="linear",
+                            model_freq="D",
+                            train_start=modal_meta['train_from'], train_end=modal_meta['train_to'],
+                            fcst_start=data['forecast_from'], fcst_end=data['forecast_to'],
+                            forecast_name=data['name'],           # groups outputs under forecasts/set1/
+                            write_to_disk=True,
+                            accuracy_tolerance=accuracy,
+                            target_min=float(modal_meta['min_value']),             # floor
+                            target_max=float(modal_meta['max_value']),             # cap
+                            # regularization + smoothing
+                            regressor_prior_scale=0.5,          # try 0.05–0.5; smaller → smoother
+                            regressor_standardize="auto",
+                            regressor_mode="additive",                 # or "additive" explicitly
+                            smooth_regressors=True,
+                            smooth_window=7,                     # try 14 for extra smoothness
+                            changepoint_prior_scale=0.05,        # try 0.02–0.1
+                            seasonality_prior_scale=5.0,
+                            regressor_global_importance = 0.2,
+                            regressor_importance = regressors,
+                            regressor_future_ma_window=60,      # try 30–60 for daily data
+                            regressor_future_strategy="linear",
+                            regressor_future_linear_window=120
+                        )
+
+                    except Exception as e:
+                        err = e
+                    finally:
+                        def finish():
+                            try:
+                                lw.top.destroy()
+                            except Exception:
+                                pass
+                            if err:
+                                messagebox.showerror("Помилка", str(err), parent=self)
+                            else:
+                                messagebox.showinfo("Готово", f"Передбачення для '{modal_meta['parameter']}' створено.", parent=self)
+                                self.forecasts_view.add_row(data)
+
+                        self.after(0, finish)
+
+                threading.Thread(target=worker, daemon=True).start()
+                
+
         AddForecastDialog(self, on_save=on_save, model_names=model_names,
-                        parameter_options=["A", "Azot", "Ammonium", "SPAR"])
+                        parameter_options=params)
 
     def _open_viz_modal(self):
         # імена передбачень беремо з екрана 'Передбачення'
@@ -294,13 +366,13 @@ class App(tk.Tk):
         self.visualization_view.import_state(state.get("visualizations"))  # <—
 
         # опціональні демо при першому запуску:
-        if not state.get("forecasts"):
-            self.forecasts_view.add_row({
-                "name":"Forecast_3_BSK", "prob":"20",
-                "model":"Model1", "parameter":"BSK",
-                "train_from":"01.01.2019", "train_to":"31.12.2019",
-                "created_at":"13.10.2025 18:10"
-            })
+        #if not state.get("forecasts"):
+        #   self.forecasts_view.add_row({
+        #        "name":"Forecast_3_BSK", "prob":"20",
+        #        "model":"Model1", "parameter":"BSK",
+        #        "train_from":"01.01.2019", "train_to":"31.12.2019",
+        #        "created_at":"13.10.2025 18:10"
+        #    })
             
         #if not state.get("timeseries") and not state.get("models"):
         #    self.ts_view.add_row("Timeseries_1_2010_2015", files=[])
