@@ -1,5 +1,4 @@
 import os
-import shutil
 
 from src.file_model import FileModel
 
@@ -41,10 +40,3 @@ class Timeseries(FileModel):
                         cls.params_cache.append(item)
 
         return cls.params_cache
-
-    @classmethod
-    def delete(cls, name):
-        timeseries_path = cls.file_path+"/"+name
-
-        if os.path.isdir(timeseries_path):
-            shutil.rmtree(timeseries_path)

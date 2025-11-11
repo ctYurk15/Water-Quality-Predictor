@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
-from theme import BG_PANEL, RED_BG, PURPLE_BG
+from theme import BG_PANEL, RED_BG, PURPLE_BG, YELLOW_BG
 
 class ModelsView(ttk.Frame):
     """
@@ -66,7 +66,7 @@ class ModelsView(ttk.Frame):
         ttk.Label(row, text=datetime.now().strftime("%d.%m.%Y %H:%M"),
                 style="Item.TLabel").grid(row=0, column=1, padx=10)
 
-        tk.Button(row, text="✎", width=3, bg="#FFE6CC", fg="#6b4b00",
+        tk.Button(row, text="✎", width=3, bg=YELLOW_BG, fg="#6b4b00",
                 bd=1, relief="raised", command=lambda r=row: self.on_edit_click(self, r)).grid(row=0, column=2, padx=(0,6))
         tk.Button(row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
                 bd=1, relief="raised", command=lambda r=row: self._remove_row(r)).grid(row=0, column=3)

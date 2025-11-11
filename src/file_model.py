@@ -1,6 +1,7 @@
 import os
 import time
 import datetime
+import shutil
 
 class FileModel:
 
@@ -31,3 +32,12 @@ class FileModel:
                 result['directories'].append(new_element)
 
         return result
+
+    @classmethod
+    def deleteItem(cls, name):
+        item_path = cls.file_path+"/"+name
+
+        if os.path.isdir(item_path):
+            shutil.rmtree(item_path)
+        else:
+            os.remove(item_path)

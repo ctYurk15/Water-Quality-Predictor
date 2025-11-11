@@ -1,6 +1,10 @@
 import tkinter as tk
-from tkinter import ttk
-from theme import BG_PANEL, RED_BG, PURPLE_BG
+from tkinter import ttk, filedialog, messagebox
+from theme import BG_PANEL, RED_BG, PURPLE_BG, YELLOW_BG
+from pathlib import Path
+import shutil, threading, os
+
+from src.forecast import Forecast
 
 class ForecastsView(ttk.Frame):
     """
@@ -66,7 +70,7 @@ class ForecastsView(ttk.Frame):
 
         # Вміст картки (як раніше)
         tk.Label(box, text=f"{data.get('name','')}", bg="white", anchor="w").grid(row=0, column=0, sticky="w")
-        tk.Label(box, text=f"{str(data.get('prob','')).strip()}%", bg="white", anchor="w").grid(row=1, column=0, sticky="w")
+        #tk.Label(box, text=f"{str(data.get('prob','')).strip()}%", bg="white", anchor="w").grid(row=1, column=0, sticky="w")
 
         parameter = ''
         selected_model = self.models_view.find_model_by_name(data.get("model",""))
@@ -81,14 +85,24 @@ class ForecastsView(ttk.Frame):
         tk.Label(period, text=data.get("forecast_from",""), bg="white").pack(anchor="w")
         tk.Label(period, text=data.get("forecast_to",""), bg="white").pack(anchor="w")
 
-        tk.Label(box, text=data.get("created_at",""), bg="white").grid(row=0, column=4, rowspan=2, padx=20)
+        accuracy = Forecast.getAccuracy(data.get('name',''))
+        accuracy = round(accuracy, 2)
 
-        # Кнопка видалення — ОКРЕМО від картки
+        tk.Label(box, text=f"{accuracy} % (acc. - {str(data.get('prob','')).strip()}%)", bg="white", anchor="w").grid(row=0, column=4, sticky="w")
+
+        ttk.Label(row, text=data.get("created_at",""), style="Item.TLabel").grid(row=0, column=1, padx=10)
+
+        download_btn = tk.Button(
+            row, text="⤓", width=3, bg=YELLOW_BG, fg="#8a0f0f",
+            bd=1, relief="raised", command=lambda r=row: self._download_data(r)
+        )
+        download_btn.grid(row=0, column=2, padx=(0, 6))  # прилягає справа до картки
+
         del_btn = tk.Button(
             row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f",
             bd=1, relief="raised", command=lambda r=row: self._remove_row(r)
         )
-        del_btn.grid(row=0, column=1, padx=(8, 0), pady=0, sticky="n")  # прилягає справа до картки
+        del_btn.grid(row=0, column=3)
 
         # Зберігаємо
         self.rows.append({"row": row, "data": dict(data)})
@@ -111,8 +125,66 @@ class ForecastsView(ttk.Frame):
     def _remove_row(self, row_widget):
         for i, it in enumerate(self.rows):
             if it["row"] is row_widget:
-                it["row"].destroy(); self.rows.pop(i); break
+                it["row"].destroy(); 
+                self.rows.pop(i); 
+                Forecast.deleteItem(it['data'].get('name'))
+                break
         for idx, it in enumerate(self.rows, start=1):
             it["row"].grid_configure(row=idx)
         self.row_idx = len(self.rows)
         self.on_rows_changed()
+
+    def _download_data(self, row_widget):
+        for i, it in enumerate(self.rows):
+            if it["row"] is row_widget:
+                file_path = Forecast.getDataFilePath(it['data'].get('name'))
+                SRC_REL = Path(file_path)
+
+                src = Path(__file__).resolve().parent.parent / SRC_REL
+                if not src.exists():
+                    messagebox.showerror("Помилка", f"Файл не знайдено:\n{src}", parent=self)
+                    return
+
+                # діалог "Зберегти як…"
+                dst_path = filedialog.asksaveasfilename(
+                    parent=self,
+                    title="Зберегти файл як…",
+                    initialdir=os.path.expanduser("~"),
+                    initialfile=src.name,
+                    defaultextension=src.suffix,
+                    filetypes=[("Усі файли", "*.*")],
+                    confirmoverwrite=False,  # самі запитаємо, якщо вже існує
+                )
+                if not dst_path:
+                    return  # користувач скасував
+
+                dst = Path(dst_path)
+                if dst.exists():
+                    if not messagebox.askyesno("Підтвердіть перезапис", f"Файл уже існує:\n{dst}\nПерезаписати?", parent=self):
+                        return
+
+                pb = ttk.Progressbar(self, mode="indeterminate", length=240)
+                pb.pack(pady=8)
+
+                # копіюємо у фоні, щоб не блокувати GUI
+                pb.start(10)
+
+                def worker():
+                    err = None
+                    try:
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src, dst)  # копіює з метаданими
+                    except Exception as e:
+                        err = e
+                    finally:
+                        def finish():
+                            pb.stop()
+                            if err:
+                                messagebox.showerror("Помилка", str(err), parent=self)
+                            else:
+                                messagebox.showinfo("Готово", f"Збережено:\n{dst}", parent=self)
+                        self.after(0, finish)
+
+                threading.Thread(target=worker, daemon=True).start()
+
+                break

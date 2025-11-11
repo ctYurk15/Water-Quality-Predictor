@@ -5,6 +5,7 @@ BG_MAIN  = "#D5E8D4"   # загальний фон
 BG_PANEL = "#CFE3C9"   # права панель
 BLUE_BG  = "#DAE8FC"   # сині кнопки/модалки
 RED_BG   = "#F8CECC"
+YELLOW_BG= "#FFE6CC"
 PURPLE_BG= "#E1D5E7"
 
 def init_styles():

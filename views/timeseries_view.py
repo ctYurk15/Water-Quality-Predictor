@@ -90,7 +90,7 @@ class TimeseriesView(ttk.Frame):
         for i, it in enumerate(self.rows):
             if it["row"] is row_widget:
                 it["row"].destroy()
-                Timeseries.delete(it['name'])
+                Timeseries.deleteItem(it['name'])
                 self.rows.pop(i)
                 break
         for idx, it in enumerate(self.rows, start=1):
