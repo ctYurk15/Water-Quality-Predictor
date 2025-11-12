@@ -19,6 +19,7 @@ from dialogs.loading import LoadingWindow
 from src.timeseries import Timeseries
 from timeseries_builder import build_timeseries
 from prophet_multivar import forecast_with_regressors
+from modules.forecast_renderer import render_from_json
 
 APP_W, APP_H = 1280, 720
 
@@ -225,7 +226,7 @@ class App(tk.Tk):
                 initial={**cur_meta, "name": cur_name}
             )
         except Exception as e:
-            from tkinter import messagebox
+            #from tkinter import messagebox
             messagebox.showerror("Помилка редагування", str(e))
 
     def _add_forecast_modal(self):
@@ -313,7 +314,7 @@ class App(tk.Tk):
         # імена передбачень беремо з екрана 'Передбачення'
         forecast_names = [it.get("name","") for it in self.forecasts_view.export_state()]
         if not forecast_names:
-            from tkinter import messagebox
+            #from tkinter import messagebox
             messagebox.showinfo("Візуалізація", "Немає передбачень. Спершу створіть їх на відповідній вкладці.")
             return
 
@@ -328,22 +329,52 @@ class App(tk.Tk):
         # імена передбачень беремо з екрана 'Передбачення'
         forecast_names = [d.get("name","") for d in self.forecasts_view.export_state()]
         if not forecast_names:
-            from tkinter import messagebox
+            #from tkinter import messagebox
             messagebox.showinfo("Візуалізація", "Немає передбачень для візуалізації.")
             return
 
         def on_save(viz):
-            self.visualization_view.add_row(viz)
             self._save_state()
+
+            lw = LoadingWindow(self, loading_text="Візуалізація передбачення "+viz.get('forecast_name')+"...")
+            lw.top.update_idletasks()
+
+            #send forecast render to another tread
+            def worker():
+                err = None
+                result = None
+                try:
+                    render_from_json(
+                        forecast_name=viz.get('forecast_name'),
+                        real_data_color=viz.get('real_data_color'),
+                        forecast_color=viz.get('forecast_color'),
+                    )
+                except Exception as e:
+                    err = e
+                finally:
+                    def finish():
+                        try:
+                            lw.top.destroy()
+                        except Exception:
+                            pass
+                        if err:
+                            messagebox.showerror("Помилка", str(err), parent=self)
+                        else:
+                            messagebox.showinfo("Готово", f"Візуалізацію для передбачення '{viz.get('forecast_name')}' створено.", parent=self)
+                            self.visualization_view.add_row(viz)
+
+                    self.after(0, finish)
+
+            threading.Thread(target=worker, daemon=True).start()
 
         CreateVisualizationDialog(self, on_save=on_save, forecast_names=forecast_names)
 
     def _viz_open_viewer(self, viz: dict):
         if not viz or not viz.get("forecast_name"):
-            from tkinter import messagebox
+            #from tkinter import messagebox
             messagebox.showinfo("Візуалізація", "Виберіть візуалізацію.")
             return
-        VisualizationViewer(self, title=viz.get("forecast_name"), color=viz.get("color") or "#1f77b4")
+        VisualizationViewer(self, forecast_title=viz.get("forecast_name"))
 
 
     def _collect_state(self):

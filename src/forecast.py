@@ -22,3 +22,18 @@ class Forecast(FileModel):
         forecast_data = cls.getData(forecast_name)
         key = next(iter(forecast_data['metrics']))
         return float(forecast_data['metrics'][key]['accuracy']) * 100
+
+    @classmethod
+    def getImagePath(cls, forecast_name, type):
+        path = ''
+        forecast_path = cls.fullPath(forecast_name)
+
+        match type:
+            case 'actuals':
+                path = forecast_path+'/actuals.png'
+            case 'forecast':
+                path = forecast_path+'/forecast.png'
+            case 'comparison':
+                path = forecast_path+'/actuals_vs_forecast.png'
+
+        return path

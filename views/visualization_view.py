@@ -67,17 +67,22 @@ class VisualizationsView(ttk.Frame):
         left = tk.Frame(card, bg="white"); left.grid(row=0, column=0, sticky="w")
         tk.Label(left, text=viz.get("forecast_name",""), bg="white", anchor="w").pack(anchor="w")
 
-        swatch = tk.Canvas(card, width=20, height=14, bg=viz.get("color") or "#1f77b4",
+        tk.Label(card, text="         Моніторинг:", bg="white", anchor="w").grid(row=0, column=1)
+        real_data_swatch = tk.Canvas(card, width=20, height=14, bg=viz.get("real_data_color") or "#1f77b4",
                            highlightthickness=1, highlightbackground="#999")
-        swatch.grid(row=0, column=1, padx=12)
+        real_data_swatch.grid(row=0, column=2, padx=12)
 
-        tk.Label(card, text=viz.get("created_at",""), bg="white").grid(row=0, column=2, padx=12)
+        tk.Label(card, text="Передбачення:", bg="white", anchor="w").grid(row=0, column=3)
+        forecast_swatch = tk.Canvas(card, width=20, height=14, bg=viz.get("forecast_color") or "#BA1200",
+                           highlightthickness=1, highlightbackground="#999")
+        forecast_swatch.grid(row=0, column=4, padx=12)
 
-        # кнопки праворуч поза карткою
+        ttk.Label(row, text=viz.get("created_at",""), style="Item.TLabel").grid(row=0, column=1, padx=12)
+
         tk.Button(row, text="👁", width=3, bg="#FFE6CC", bd=1, relief="raised",
-                  command=lambda d=viz: self.on_view_click(d)).grid(row=0, column=1, padx=(8,6))
+                  command=lambda d=viz: self.on_view_click(d)).grid(row=0, column=2, padx=(8,6))
         tk.Button(row, text="✖", width=3, bg=RED_BG, fg="#8a0f0f", bd=1, relief="raised",
-                  command=lambda r=row: self._remove_row(r)).grid(row=0, column=2)
+                  command=lambda r=row: self._remove_row(r)).grid(row=0, column=3)
 
         self.rows.append({"row": row, "data": dict(viz)})
         self.on_rows_changed()

@@ -55,12 +55,13 @@ def _plot_line(
     title_sub: str,
     outfile: Path,
     xlim: tuple[pd.Timestamp, pd.Timestamp],
+    color: '#0000FF'
 ) -> None:
     """Single line plot with monthly ticks; optional second-line subtitle."""
     fig = plt.figure()
     ax = fig.gca()
     if not df.empty:
-        ax.plot(df[x], df[y], label=title_main)
+        line = ax.plot(df[x], df[y], label=title_main, color=color)
 
     # Titles: first line minimal; second line (if any) with regressors
     ax.set_title(title_main + (f"\n{title_sub}" if title_sub else ""))
@@ -125,6 +126,8 @@ def render_from_json(
     param: Optional[str] = None,      # for univariate items
     target: Optional[str] = None,     # for multivariate items
     base_output_dir: Optional[str | Path] = None,
+    real_data_color: '#0000FF',
+    forecast_color: '#FF0000'
 ) -> Dict[str, str]:
     """
     Render 3 PNGs for a selected item from forecasts/<forecast_name>/data.json.
@@ -146,7 +149,7 @@ def render_from_json(
     """
     # Resolve run directory and read data.json
     if base_output_dir is None:
-        base_output_dir = Path(__file__).resolve().parent / "forecasts"
+        base_output_dir = Path(__file__).resolve().parent.parent / "forecasts"
     run_dir = Path(base_output_dir) / forecast_name
     data_path = run_dir / "data.json"
     if not data_path.exists():
@@ -195,9 +198,9 @@ def render_from_json(
 
     # Output filenames
     suffix = _file_suffix(chosen)
-    fp_forecast = run_dir / f"{suffix}__forecast.png"
-    fp_actuals = run_dir / f"{suffix}__actuals.png"
-    fp_both = run_dir / f"{suffix}__actuals_vs_forecast.png"
+    fp_forecast = run_dir / f"forecast.png"
+    fp_actuals = run_dir / f"actuals.png"
+    fp_both = run_dir / f"actuals_vs_forecast.png"
 
     # Accuracy metric (kept only for return payload; not shown in titles)
     metric_key, _ = _pick_accuracy_metric(chosen.get("metrics", {}))
@@ -210,13 +213,17 @@ def render_from_json(
         pred.rename(columns={"yhat": "y"}),
         "ds", "y",
         "Forecast", subtitle,
-        fp_forecast, xlim
+        fp_forecast, 
+        xlim,
+        forecast_color
     )
     _plot_line(
         act_plot,
         "ds", "y",
         "Actuals", '',
-        fp_actuals, xlim
+        fp_actuals, 
+        xlim,
+        real_data_color
     )
 
     # ---- accuracy (from JSON) ----
@@ -237,8 +244,8 @@ def render_from_json(
     fig = plt.figure()
     ax = fig.gca()
     if not act_plot.empty:
-        ax.plot(act_plot["ds"], act_plot["y"], label="Actuals")
-    ax.plot(pred["ds"], pred["yhat"], label="Forecast")
+        ax.plot(act_plot["ds"], act_plot["y"], label="Actuals", color=real_data_color)
+    ax.plot(pred["ds"], pred["yhat"], label="Forecast", color=forecast_color)
     if {"yhat_lower", "yhat_upper"}.issubset(pred.columns):
         try:
             ax.fill_between(pred["ds"], pred["yhat_lower"], pred["yhat_upper"], alpha=0.2, label="Uncertainty")

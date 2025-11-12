@@ -6,7 +6,7 @@ from prophet_module import batch_forecast
 from forecast_plotter import generate_plots
 from prophet_multivar import forecast_with_regressors
 from forecast_plotter_multivar import generate_multivar_plots
-from forecast_renderer import render_from_json
+from modules.forecast_renderer import render_from_json
 
 print("\n-----------------------------")
 print('Welcome! Please choose an action: ')
@@ -126,5 +126,6 @@ match action:
 
     case 3:
         forecast_name = input("Forecast name: ").strip()
-        paths = render_from_json(forecast_name, target="Azot")
+        #paths = render_from_json(forecast_name, target="Azot")
+        paths = render_from_json(forecast_name)
         print(paths)
