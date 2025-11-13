@@ -1,4 +1,5 @@
 import json
+import os
 
 from src.file_model import FileModel
 
@@ -37,3 +38,9 @@ class Forecast(FileModel):
                 path = forecast_path+'/actuals_vs_forecast.png'
 
         return path
+
+    @classmethod
+    def clearImages(cls, forecast_name):
+        cls.safeDeleteFile(cls.getImagePath(forecast_name, 'actuals'))
+        cls.safeDeleteFile(cls.getImagePath(forecast_name, 'forecast'))
+        cls.safeDeleteFile(cls.getImagePath(forecast_name, 'comparison'))

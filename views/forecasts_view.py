@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil, threading, os
 
 from src.forecast import Forecast
+from modules.downloader import trigger_file_download
 
 class ForecastsView(ttk.Frame):
     """
@@ -138,53 +139,5 @@ class ForecastsView(ttk.Frame):
         for i, it in enumerate(self.rows):
             if it["row"] is row_widget:
                 file_path = Forecast.getDataFilePath(it['data'].get('name'))
-                SRC_REL = Path(file_path)
-
-                src = Path(__file__).resolve().parent.parent / SRC_REL
-                if not src.exists():
-                    messagebox.showerror("Помилка", f"Файл не знайдено:\n{src}", parent=self)
-                    return
-
-                # діалог "Зберегти як…"
-                dst_path = filedialog.asksaveasfilename(
-                    parent=self,
-                    title="Зберегти файл як…",
-                    initialdir=os.path.expanduser("~"),
-                    initialfile=src.name,
-                    defaultextension=src.suffix,
-                    filetypes=[("Усі файли", "*.*")],
-                    confirmoverwrite=False,  # самі запитаємо, якщо вже існує
-                )
-                if not dst_path:
-                    return  # користувач скасував
-
-                dst = Path(dst_path)
-                if dst.exists():
-                    if not messagebox.askyesno("Підтвердіть перезапис", f"Файл уже існує:\n{dst}\nПерезаписати?", parent=self):
-                        return
-
-                pb = ttk.Progressbar(self, mode="indeterminate", length=240)
-                pb.pack(pady=8)
-
-                # копіюємо у фоні, щоб не блокувати GUI
-                pb.start(10)
-
-                def worker():
-                    err = None
-                    try:
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(src, dst)  # копіює з метаданими
-                    except Exception as e:
-                        err = e
-                    finally:
-                        def finish():
-                            pb.stop()
-                            if err:
-                                messagebox.showerror("Помилка", str(err), parent=self)
-                            else:
-                                messagebox.showinfo("Готово", f"Збережено:\n{dst}", parent=self)
-                        self.after(0, finish)
-
-                threading.Thread(target=worker, daemon=True).start()
-
+                trigger_file_download(file_path, self)
                 break

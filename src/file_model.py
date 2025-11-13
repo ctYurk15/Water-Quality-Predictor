@@ -41,3 +41,7 @@ class FileModel:
             shutil.rmtree(item_path)
         else:
             os.remove(item_path)
+
+    @classmethod
+    def safeDeleteFile(cls, file_path):
+        if os.path.isfile(file_path): os.remove(file_path)

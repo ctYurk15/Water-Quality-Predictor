@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from theme import BLUE_BG, BG_MAIN
 
 from src.forecast import Forecast
+from modules.downloader import trigger_file_download
 
 class VisualizationViewer:
     """
@@ -16,9 +17,11 @@ class VisualizationViewer:
         self.master = master
         self.index = 0  # 0..2
 
-        self.img_path1 = Forecast.getImagePath(forecast_title, 'actuals')
-        self.img_path2 = Forecast.getImagePath(forecast_title, 'forecast')
-        self.img_path3 = Forecast.getImagePath(forecast_title, 'comparison')
+        self.images = [
+            Forecast.getImagePath(forecast_title, 'actuals'),
+            Forecast.getImagePath(forecast_title, 'forecast'),
+            Forecast.getImagePath(forecast_title, 'comparison')
+        ]
 
         # кеш об'єктів PhotoImage, щоб GC не прибирав
         self._photos = [None, None, None]
@@ -78,11 +81,13 @@ class VisualizationViewer:
         self.top.bind("<Configure>", lambda e: self._refresh_scrollregion())
 
     # ---------- slider API ----------
+    '''
     def set_images(self, path1="", path2="", path3=""):
         self.img_path1, self.img_path2, self.img_path3 = path1 or "", path2 or "", path3 or ""
         self._photos = [None, None, None]
         self.index = 0
         self._show_current()
+    '''
 
     def next(self):
         self.index = (self.index + 1) % 3
@@ -94,10 +99,10 @@ class VisualizationViewer:
 
     # ---------- rendering ----------
     def _show_current(self):
-        self.idx_label.config(text=f"{self.index + 1} / 3")
+        self.idx_label.config(text=f"{self.index + 1} / {len(self.images)}")
         self.canvas.delete("all")
 
-        path = [self.img_path1, self.img_path2, self.img_path3][self.index]
+        path = self.images[self.index]
         if path:
             try:
                 # стандартний PhotoImage (PNG/GIF). Для JPG знадобиться PIL.
@@ -140,5 +145,5 @@ class VisualizationViewer:
 
     # ---------- download stub ----------
     def _download_stub(self):
-        current = self.index + 1
-        messagebox.showinfo("Завантаження", f"Завантажити зображення {current}: реалізуй тут свій код.")
+        image_path = self.images[self.index]
+        trigger_file_download(image_path, self.master)

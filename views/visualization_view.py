@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from theme import BG_PANEL, PURPLE_BG, RED_BG
 
+from src.forecast import Forecast
+
 class VisualizationsView(ttk.Frame):
     """
     Екран 'Візуалізація' як список карток.
@@ -101,6 +103,7 @@ class VisualizationsView(ttk.Frame):
     def _remove_row(self, row_widget):
         for i, it in enumerate(self.rows):
             if it["row"] is row_widget:
+                Forecast.clearImages(it['data']['forecast_name'])
                 it["row"].destroy()
                 self.rows.pop(i)
                 break
