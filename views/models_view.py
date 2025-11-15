@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from datetime import datetime
 from theme import BG_PANEL, RED_BG, PURPLE_BG, YELLOW_BG
 
 class ModelsView(ttk.Frame):
@@ -63,7 +62,7 @@ class ModelsView(ttk.Frame):
         box.grid(row=0, column=0, sticky="ew")
         row.grid_columnconfigure(0, weight=1)
 
-        ttk.Label(row, text=datetime.now().strftime("%d.%m.%Y %H:%M"),
+        ttk.Label(row, text=meta.get("created_at",""),
                 style="Item.TLabel").grid(row=0, column=1, padx=10)
 
         tk.Button(row, text="✎", width=3, bg=YELLOW_BG, fg="#6b4b00",

@@ -17,7 +17,8 @@ from views.visualization_view import VisualizationsView
 from dialogs.loading import LoadingWindow
 
 from src.timeseries import Timeseries
-from timeseries_builder import build_timeseries
+from src.forecast import Forecast
+from modules.timeseries_builder import build_timeseries
 from prophet_multivar import forecast_with_regressors
 from modules.forecast_renderer import render_from_json
 
@@ -185,18 +186,17 @@ class App(tk.Tk):
         def on_save(model_dict):
             self.models_view.add_row(model_dict["name"], meta=model_dict)
             self._save_state()
-        #AddOrEditModelDialog(self, on_save=on_save)
 
-        timeseries = Timeseries.getEntries(False, True)
+        timeseries = Timeseries.getEntries(True, True)
         params = Timeseries.getParams()
 
         AddOrEditModelDialog(
             self,
             on_save=on_save,
-            # за бажанням підставте реальні списки:
             timeseries_options=timeseries,
             parameter_options=params,
             regressor_options=params,
+            models_view=self.models_view
         )
 
     def _edit_model_modal(self, view, row_widget):
@@ -327,7 +327,10 @@ class App(tk.Tk):
 
     def _viz_create_modal(self):
         # імена передбачень беремо з екрана 'Передбачення'
-        forecast_names = [d.get("name","") for d in self.forecasts_view.export_state()]
+        forecast_names = [
+            d.get("name","") for d in self.forecasts_view.export_state() 
+            if Forecast.hasImages(d.get("name","")) == False
+        ]
         if not forecast_names:
             #from tkinter import messagebox
             messagebox.showinfo("Візуалізація", "Немає передбачень для візуалізації.")
@@ -394,21 +397,7 @@ class App(tk.Tk):
         self.ts_view.import_state(timeseries)
         self.models_view.import_state(state.get("models"))
         self.forecasts_view.import_state(state.get("forecasts"))
-        self.visualization_view.import_state(state.get("visualizations"))  # <—
-
-        # опціональні демо при першому запуску:
-        #if not state.get("forecasts"):
-        #   self.forecasts_view.add_row({
-        #        "name":"Forecast_3_BSK", "prob":"20",
-        #        "model":"Model1", "parameter":"BSK",
-        #        "train_from":"01.01.2019", "train_to":"31.12.2019",
-        #        "created_at":"13.10.2025 18:10"
-        #    })
-            
-        #if not state.get("timeseries") and not state.get("models"):
-        #    self.ts_view.add_row("Timeseries_1_2010_2015", files=[])
-        #    self.ts_view.add_row("Timeseries_2_2010_2015", files=[])
-        #    self.models_view.add_row("Model_1_2020_2021_Azot", meta={"name":"Model_1_2020_2021_Azot"})
+        self.visualization_view.import_state(state.get("visualizations"))
 
 
     def _save_state(self):

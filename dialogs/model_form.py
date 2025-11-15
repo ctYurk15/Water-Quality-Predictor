@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+from datetime import datetime
 from theme import BLUE_BG, BG_MAIN, RED_BG
+from modules.validation_helpers import validate_date, string_is_number
 
 class AddOrEditModelDialog:
     """
@@ -12,9 +14,12 @@ class AddOrEditModelDialog:
                  timeseries_options=None,
                  parameter_options=None,
                  regressor_options=None,
-                 initial=None):
+                 initial=None,
+                 models_view=None):
         self.master = master
         self.on_save = on_save
+
+        self.models_view = models_view
 
         self.timeseries_options = timeseries_options or []
         self.parameter_options = parameter_options or []
@@ -167,21 +172,53 @@ class AddOrEditModelDialog:
         if not name:
             messagebox.showwarning("Перевірка", "Вкажіть назву моделі.")
             return
+        existing_model = self.models_view.find_model_by_name(name)
+        if existing_model != {}:
+            messagebox.showwarning("Перевірка", "Така назва вже існує")
+            return
+
+        # required params
         ts = self.ts_list.get(self.ts_list.curselection()[0]) if self.ts_list.curselection() else None
         param = self.param_list.get(self.param_list.curselection()[0]) if self.param_list.curselection() else None
+        train_from = self.train_from.get().strip()
+        train_to = self.train_to.get().strip()
+        min_value = self.min_value.get().strip()
+        max_value = self.max_value.get().strip()
+
+        # optional params
         sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
         weights = {rg: self.weight_vars[rg].get() for rg in self.weight_vars}
+        
+        if ts == None:
+            messagebox.showwarning("Перевірка", "Вкажіть часовий ряд")
+            return
+        if param == None:
+            messagebox.showwarning("Перевірка", "Вкажіть назву параметра")
+            return
+        if validate_date(train_from) == False:
+            messagebox.showwarning("Перевірка", "Вкажіть коректну дату початку навчання")
+            return
+        if validate_date(train_to) == False:
+            messagebox.showwarning("Перевірка", "Вкажіть коректну дату кінця навчання")
+            return
+        if string_is_number(min_value) == False or min_value == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне мінімальне значення")
+            return
+        if string_is_number(max_value) == False or max_value == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення")
+            return
 
         payload = dict(
             name=name,
             timeseries=ts,
             parameter=param,
-            train_from=self.train_from.get().strip(),
-            train_to=self.train_to.get().strip(),
-            min_value=self.min_value.get().strip(),
-            max_value=self.max_value.get().strip(),
+            train_from=train_from,
+            train_to=train_to,
+            min_value=min_value,
+            max_value=max_value,
             regressors=sel_regs,
-            weights=weights
+            weights=weights,
+            created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )
         self.top.grab_release(); self.top.destroy()
         self.on_save(payload)

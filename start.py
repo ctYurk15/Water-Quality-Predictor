@@ -1,7 +1,7 @@
 from src.dataset import Dataset
 from src.timeseries import Timeseries
 
-from timeseries_builder import build_timeseries
+from modules.timeseries_builder import build_timeseries
 from prophet_module import batch_forecast
 from forecast_plotter import generate_plots
 from prophet_multivar import forecast_with_regressors

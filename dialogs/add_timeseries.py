@@ -3,6 +3,7 @@ import os
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from theme import BLUE_BG, BG_MAIN, RED_BG
+from src.timeseries import Timeseries
 
 class AddTimeseriesDialog:
     """Модалка: назва + вибір кількох файлів з папки raw-datasets (multi-select)."""
@@ -92,6 +93,11 @@ class AddTimeseriesDialog:
         name = self.name_var.get().strip()
         if not name:
             messagebox.showwarning("Перевірка", "Вкажіть назву часового ряду.")
+            return
+        timeseries = Timeseries.getEntries(True, True)
+        if name in timeseries:
+            #if name == entry['name']:
+            messagebox.showwarning("Перевірка", "Така назва уже існує")
             return
         self.top.grab_release()
         self.top.destroy()

@@ -40,6 +40,13 @@ class Forecast(FileModel):
         return path
 
     @classmethod
+    def hasImages(cls, forecast_name):
+        if os.path.isfile(cls.getImagePath(forecast_name, 'actuals')) and os.path.isfile(cls.getImagePath(forecast_name, 'forecast')) and os.path.isfile(cls.getImagePath(forecast_name, 'comparison')):
+            return True
+        else:
+            return False
+
+    @classmethod
     def clearImages(cls, forecast_name):
         cls.safeDeleteFile(cls.getImagePath(forecast_name, 'actuals'))
         cls.safeDeleteFile(cls.getImagePath(forecast_name, 'forecast'))

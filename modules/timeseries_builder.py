@@ -52,6 +52,7 @@ def read_csv_semicolon(path: Path | str) -> pd.DataFrame:
         na_values=NA_VALUES,
         keep_default_na=True,
         engine="python",
+        on_bad_lines="warn",
     )
     df.columns = [c.strip() for c in df.columns]
     for c in df.columns:
