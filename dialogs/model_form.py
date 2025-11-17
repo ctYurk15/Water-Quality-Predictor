@@ -4,6 +4,8 @@ from datetime import datetime
 from theme import BLUE_BG, BG_MAIN, RED_BG
 from modules.validation_helpers import validate_date, string_is_number
 
+data_frequencies = ['D', 'W', 'M', 'H', 'Q', 'Y']
+
 class AddOrEditModelDialog:
     """
     Скролювана форма моделі.
@@ -96,13 +98,23 @@ class AddOrEditModelDialog:
         r += 1
 
         # Мін/макс
-        self._subheader(r, "Мінімум / максимум", col=2); r += 1
+        self._subheader(r, "Мінімум / максимум", col=0); r += 1
         self.min_value = tk.StringVar(value=(initial or {}).get("min_value", "0"))
         self.max_value = tk.StringVar(value=(initial or {}).get("max_value", "6"))
         ttk.Entry(self.form, textvariable=self.min_value)\
-            .grid(row=r, column=2, sticky="ew", padx=PADX, pady=(0,8))
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         ttk.Entry(self.form, textvariable=self.max_value)\
-            .grid(row=r, column=3, sticky="ew", padx=PADX, pady=(0,8))
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Частоти даних
+        self._subheader(r, f"Частота навчальних & вихідних даних ({','.join(data_frequencies)})", col=0, colspan=4); r += 1
+        self.model_freq = tk.StringVar(value=(initial or {}).get("model_freq", "D"))
+        self.result_freq = tk.StringVar(value=(initial or {}).get("result_freq", "D"))
+        ttk.Entry(self.form, textvariable=self.model_freq)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.result_freq)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
         # Регресори + ваги
@@ -119,6 +131,21 @@ class AddOrEditModelDialog:
         r += 1
 
         self.reg_list.bind("<<ListboxSelect>>", lambda e: self._rebuild_weights())
+
+        # Частоти даних
+        self._subheader(r, "Вплив регресорів (0.01 -> 10)", col=0, colspan=2)
+        self._subheader(r, "Масштабувати регресор? (True, False, auto)", col=2, colspan=2)
+        r += 1
+        self.regressor_prior_scale = tk.StringVar(value=(initial or {}).get("regressor_prior_scale", 0.5))
+        self.regressor_standardize = tk.StringVar(value=(initial or {}).get("regressor_standardize", "auto"))
+        regressor_standardize_val = self.regressor_standardize.get().strip()
+        if regressor_standardize_val == '1': self.regressor_standardize.set('True')
+        elif regressor_standardize_val == '0': self.regressor_standardize.set('False')
+        ttk.Entry(self.form, textvariable=self.regressor_prior_scale)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.regressor_standardize)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
 
         # Кнопки
         btns = tk.Frame(self.form, bg=BLUE_BG)
@@ -150,9 +177,9 @@ class AddOrEditModelDialog:
     def _label(self, row, text, col=0):
         tk.Label(self.form, text=text, bg=BLUE_BG).grid(row=row, column=col, sticky="w", padx=8, pady=(0,2))
 
-    def _subheader(self, row, text, col=0):
-        tk.Label(self.form, text=text, bg=BLUE_BG, font=("", 10, "bold"))\
-            .grid(row=row, column=col, sticky="w", padx=8, pady=(6,2))
+    def _subheader(self, row, text, col=0, colspan=1):
+        tk.Label(self.form, text=text, bg=BLUE_BG, font=("", 10, "bold"), anchor='w')\
+            .grid(row=row, column=col, sticky="ww", padx=8, pady=(6,2),columnspan=colspan)
 
     def _rebuild_weights(self):
         for w in self.weights_frame.winfo_children(): w.destroy()
@@ -184,10 +211,23 @@ class AddOrEditModelDialog:
         # required params
         ts = self.ts_list.get(self.ts_list.curselection()[0]) if self.ts_list.curselection() else None
         param = self.param_list.get(self.param_list.curselection()[0]) if self.param_list.curselection() else None
+
         train_from = self.train_from.get().strip()
         train_to = self.train_to.get().strip()
+
         min_value = self.min_value.get().strip()
         max_value = self.max_value.get().strip()
+
+        result_freq = self.result_freq.get().strip()
+        model_freq = self.model_freq.get().strip()
+
+        regressor_prior_scale = self.regressor_prior_scale.get().strip()
+
+        regressor_standardize_raw = self.regressor_standardize.get().strip()
+        regressor_standardize = ''
+        if regressor_standardize_raw == 'auto': regressor_standardize = 'auto'
+        elif regressor_standardize_raw == 'True': regressor_standardize = True
+        elif regressor_standardize_raw == 'False': regressor_standardize = False
 
         # optional params
         sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
@@ -211,6 +251,18 @@ class AddOrEditModelDialog:
         if string_is_number(max_value) == False or max_value == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення")
             return
+        if model_freq not in data_frequencies:
+            messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту навчальних даних ({','.join(data_frequencies)})")
+            return
+        if result_freq not in data_frequencies:
+            messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту вихідних даних ({','.join(data_frequencies)})")
+            return
+        if string_is_number(regressor_prior_scale) == False or regressor_prior_scale == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний вплив регресорів")
+            return regressor_standardize
+        if regressor_standardize == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня для масштабування регресорів")
+            return
 
         payload = dict(
             name=name,
@@ -220,8 +272,12 @@ class AddOrEditModelDialog:
             train_to=train_to,
             min_value=min_value,
             max_value=max_value,
+            result_freq=result_freq,
+            model_freq=model_freq,
             regressors=sel_regs,
             weights=weights,
+            regressor_prior_scale=regressor_prior_scale,
+            regressor_standardize=regressor_standardize,
             created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )
         self.top.grab_release(); self.top.destroy()

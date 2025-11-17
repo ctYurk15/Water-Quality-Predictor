@@ -255,6 +255,9 @@ class App(tk.Tk):
                     err = None
                     result = None
                     try:
+
+                        regressor_standardize_val = modal_meta['regressor_standardize']
+                        if regressor_standardize_val != 'auto': regressor_standardize_val = bool(regressor_standardize_val)
                         
                         forecast_with_regressors(
                             timeseries_dir=Timeseries.fullPath(modal_meta['timeseries']),
@@ -262,10 +265,10 @@ class App(tk.Tk):
                             regressors=modal_meta['regressors'],
                             station_code=None,              # or "...", optional
                             station_id=None,                # or "26853", optional
-                            freq="D", 
+                            freq=modal_meta['result_freq'], 
                             agg="mean", 
                             growth="linear",
-                            model_freq="D",
+                            model_freq=modal_meta['model_freq'],
                             train_start=modal_meta['train_from'], train_end=modal_meta['train_to'],
                             fcst_start=data['forecast_from'], fcst_end=data['forecast_to'],
                             forecast_name=data['name'],           # groups outputs under forecasts/set1/
@@ -274,8 +277,8 @@ class App(tk.Tk):
                             target_min=float(modal_meta['min_value']),             # floor
                             target_max=float(modal_meta['max_value']),             # cap
                             # regularization + smoothing
-                            regressor_prior_scale=0.5,          # try 0.05–0.5; smaller → smoother
-                            regressor_standardize="auto",
+                            regressor_prior_scale=modal_meta['regressor_prior_scale'],          # try 0.05–0.5; smaller → smoother
+                            regressor_standardize=regressor_standardize_val,
                             regressor_mode="additive",                 # or "additive" explicitly
                             smooth_regressors=True,
                             smooth_window=7,                     # try 14 for extra smoothness
