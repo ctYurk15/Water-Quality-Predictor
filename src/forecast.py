@@ -22,7 +22,10 @@ class Forecast(FileModel):
     def getAccuracy(cls, forecast_name):
         forecast_data = cls.getData(forecast_name)
         key = next(iter(forecast_data['metrics']))
-        return float(forecast_data['metrics'][key]['accuracy']) * 100
+        accuracy = forecast_data['metrics'][key]['accuracy']
+        if accuracy == None:
+            accuracy = 0
+        return float(accuracy) * 100
 
     @classmethod
     def getImagePath(cls, forecast_name, type):

@@ -219,11 +219,11 @@ class App(tk.Tk):
             AddOrEditModelDialog(
                 self,
                 on_save=on_save,
-                # при бажанні підстав реальні списки:
                 timeseries_options=timeseries,
                 parameter_options=params,
                 regressor_options=params,
-                initial={**cur_meta, "name": cur_name}
+                initial={**cur_meta, "name": cur_name},
+                models_view=self.models_view
             )
         except Exception as e:
             #from tkinter import messagebox

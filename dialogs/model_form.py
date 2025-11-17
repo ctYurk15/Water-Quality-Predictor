@@ -30,6 +30,10 @@ class AddOrEditModelDialog:
         self.top.transient(master); self.top.grab_set()
         self.top.configure(bg=BLUE_BG)
         self.top.resizable(True, True)
+        if initial != None:
+            self.initial_name = initial['name']
+        else:
+            self.initial_name = ''
 
         # стартовий розмір і центр
         self.top.update_idletasks()
@@ -173,7 +177,7 @@ class AddOrEditModelDialog:
             messagebox.showwarning("Перевірка", "Вкажіть назву моделі.")
             return
         existing_model = self.models_view.find_model_by_name(name)
-        if existing_model != {}:
+        if existing_model != {} and self.initial_name != name:
             messagebox.showwarning("Перевірка", "Така назва вже існує")
             return
 
