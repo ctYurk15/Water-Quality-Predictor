@@ -141,3 +141,13 @@ class ForecastsView(ttk.Frame):
                 file_path = Forecast.getDataFilePath(it['data'].get('name'))
                 trigger_file_download(file_path, self)
                 break
+
+    def find_forecast_by_name(self, search_name):
+        result = {}
+
+        for i, it in enumerate(self.rows):
+            if it['data'].get("name") == search_name:
+                result = it
+                break
+
+        return result

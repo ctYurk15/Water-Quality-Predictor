@@ -307,8 +307,8 @@ class App(tk.Tk):
                 threading.Thread(target=worker, daemon=True).start()
                 
 
-        AddForecastDialog(self, on_save=on_save, model_names=model_names,
-                        parameter_options=params)
+        AddForecastDialog(self, on_save=on_save, model_names=model_names, parameter_options=params, 
+                        forecasts_view=self.forecasts_view)
 
     def _open_viz_modal(self):
         # імена передбачень беремо з екрана 'Передбачення'

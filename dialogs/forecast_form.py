@@ -12,11 +12,12 @@ class AddForecastDialog:
     - Період від–до
     - Ймовірність/точність у %
     """
-    def __init__(self, master, on_save, *, model_names=None, parameter_options=None):
+    def __init__(self, master, on_save, *, model_names=None, parameter_options=None, forecasts_view=None):
         self.master = master
         self.on_save = on_save
         self.model_names = model_names or []
         self.parameter_options = parameter_options or []
+        self.forecasts_view = forecasts_view
 
         self.top = tk.Toplevel(master)
         self.top.title("Нове передбачення")
@@ -71,10 +72,15 @@ class AddForecastDialog:
         if not name:
             messagebox.showwarning("Перевірка", "Вкажіть назву передбачення.")
             return
+
+        existing_forecast = self.forecasts_view.find_forecast_by_name(name)
+        if existing_forecast != {}:
+            messagebox.showwarning("Перевірка", "Така назва вже існує")
+            return
+
         data = dict(
             name=name,
             model=self.model_cmb.get().strip(),
-            #parameter=self.param_cmb.get().strip(),
             forecast_from=self.from_var.get().strip(),
             forecast_to=self.to_var.get().strip(),
             prob=self.prob_var.get().strip(),
