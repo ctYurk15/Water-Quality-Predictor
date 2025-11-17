@@ -19,7 +19,7 @@ from dialogs.loading import LoadingWindow
 from src.timeseries import Timeseries
 from src.forecast import Forecast
 from modules.timeseries_builder import build_timeseries
-from prophet_multivar import forecast_with_regressors
+from modules.prophet_multivar import forecast_with_regressors
 from modules.forecast_renderer import render_from_json
 
 APP_W, APP_H = 1280, 720

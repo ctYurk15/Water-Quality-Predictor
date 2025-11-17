@@ -2,10 +2,7 @@ from src.dataset import Dataset
 from src.timeseries import Timeseries
 
 from modules.timeseries_builder import build_timeseries
-from prophet_module import batch_forecast
-from forecast_plotter import generate_plots
-from prophet_multivar import forecast_with_regressors
-from forecast_plotter_multivar import generate_multivar_plots
+from modules.prophet_multivar import forecast_with_regressors
 from modules.forecast_renderer import render_from_json
 
 print("\n-----------------------------")

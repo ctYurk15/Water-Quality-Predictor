@@ -19,7 +19,7 @@ except Exception as e:
     raise RuntimeError("Prophet is required. Install with: pip install prophet pandas") from e
 
 # Where to save by default (sibling to this module)
-BASE_FORECASTS_DIR = (Path(__file__).resolve().parent / "forecasts").resolve()
+BASE_FORECASTS_DIR = (Path(__file__).resolve().parent.parent / "forecasts").resolve()
 
 # ------------------------- helpers -------------------------
 
