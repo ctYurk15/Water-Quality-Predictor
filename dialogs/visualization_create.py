@@ -34,7 +34,7 @@ class CreateVisualizationDialog:
         if self.names: self.cmb.current(0)
         self.cmb.grid(row=1, column=0, sticky="ew", pady=(0,8))
 
-        tk.Label(frm, text="Колір лінії реальних даних", bg=BLUE_BG).grid(row=2, column=0, sticky="w")
+        tk.Label(frm, text="Колір лінії моніторингу", bg=BLUE_BG).grid(row=2, column=0, sticky="w")
         real_data_color_row = tk.Frame(frm, bg=BLUE_BG)
         real_data_color_row.grid(row=3, column=0, sticky="w", pady=(0,8))
         self.real_data_color = "#1f77b4"
@@ -42,9 +42,9 @@ class CreateVisualizationDialog:
         self.real_data_preview.pack(side="left", padx=(0,6))
         ttk.Button(real_data_color_row, text="Обрати колір…", command=self._pick_real_data_color).pack(side="left")
 
-        tk.Label(frm, text="Колір лінії передбачення", bg=BLUE_BG).grid(row=2, column=0, sticky="w")
+        tk.Label(frm, text="Колір лінії передбачення", bg=BLUE_BG).grid(row=4, column=0, sticky="w")
         forecast_color_row = tk.Frame(frm, bg=BLUE_BG)
-        forecast_color_row.grid(row=4, column=0, sticky="w", pady=(0,8))
+        forecast_color_row.grid(row=5, column=0, sticky="w", pady=(0,8))
         self.forecast_color = "#BA1200"
         self.forecast_preview = tk.Canvas(forecast_color_row, width=28, height=18, bg=self.forecast_color, highlightthickness=1, highlightbackground="#888")
         self.forecast_preview.pack(side="left", padx=(0,6))

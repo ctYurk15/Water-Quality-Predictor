@@ -2,9 +2,10 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 from theme import BLUE_BG, BG_MAIN, RED_BG
-from modules.validation_helpers import validate_date, string_is_number
+from modules.validation_helpers import validate_date, string_is_number, string_to_bool, number_to_bool_string
 
 data_frequencies = ['D', 'W', 'M', 'H', 'Q', 'Y']
+regressor_modes = ['additive', 'multiplicative']
 
 class AddOrEditModelDialog:
     """
@@ -132,18 +133,31 @@ class AddOrEditModelDialog:
 
         self.reg_list.bind("<<ListboxSelect>>", lambda e: self._rebuild_weights())
 
-        # Частоти даних
+        # Налаштування регресорів (1)
         self._subheader(r, "Вплив регресорів (0.01 -> 10)", col=0, colspan=2)
         self._subheader(r, "Масштабувати регресор? (True, False, auto)", col=2, colspan=2)
         r += 1
         self.regressor_prior_scale = tk.StringVar(value=(initial or {}).get("regressor_prior_scale", 0.5))
         self.regressor_standardize = tk.StringVar(value=(initial or {}).get("regressor_standardize", "auto"))
         regressor_standardize_val = self.regressor_standardize.get().strip()
-        if regressor_standardize_val == '1': self.regressor_standardize.set('True')
-        elif regressor_standardize_val == '0': self.regressor_standardize.set('False')
+        self.regressor_standardize.set(number_to_bool_string(regressor_standardize_val))
         ttk.Entry(self.form, textvariable=self.regressor_prior_scale)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         ttk.Entry(self.form, textvariable=self.regressor_standardize)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Налаштування регресорів (2)
+        self._subheader(r, f"Режим регресора ({','.join(regressor_modes)})", col=0, colspan=2)
+        self._subheader(r, "Згладжувати регресор? (True, False)", col=2, colspan=2)
+        r += 1
+        self.regressor_mode = tk.StringVar(value=(initial or {}).get("regressor_mode", 'additive'))
+        self.smooth_regressors = tk.StringVar(value=(initial or {}).get("smooth_regressors", '1'))
+        smooth_regressors_val = self.smooth_regressors.get().strip()
+        self.smooth_regressors.set(number_to_bool_string(smooth_regressors_val))
+        ttk.Entry(self.form, textvariable=self.regressor_mode)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.smooth_regressors)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
@@ -226,8 +240,10 @@ class AddOrEditModelDialog:
         regressor_standardize_raw = self.regressor_standardize.get().strip()
         regressor_standardize = ''
         if regressor_standardize_raw == 'auto': regressor_standardize = 'auto'
-        elif regressor_standardize_raw == 'True': regressor_standardize = True
-        elif regressor_standardize_raw == 'False': regressor_standardize = False
+        else: regressor_standardize = string_to_bool(regressor_standardize_raw)
+
+        regressor_mode = self.regressor_mode.get().strip()
+        smooth_regressors = string_to_bool(self.smooth_regressors.get().strip())
 
         # optional params
         sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
@@ -260,8 +276,14 @@ class AddOrEditModelDialog:
         if string_is_number(regressor_prior_scale) == False or regressor_prior_scale == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректний вплив регресорів")
             return regressor_standardize
-        if regressor_standardize == '':
+        if type(regressor_standardize) != bool and regressor_standardize != 'auto':
             messagebox.showwarning("Перевірка", "Вкажіть коректне значеня для масштабування регресорів")
+            return
+        if regressor_mode not in regressor_modes:
+            messagebox.showwarning("Перевірка", f"Вкажіть коректний режм регресора ({','.join(regressor_modes)})")
+            return
+        if type(smooth_regressors) != bool:
+            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня для згладжуванння регресорів")
             return
 
         payload = dict(
@@ -278,6 +300,8 @@ class AddOrEditModelDialog:
             weights=weights,
             regressor_prior_scale=regressor_prior_scale,
             regressor_standardize=regressor_standardize,
+            regressor_mode=regressor_mode,
+            smooth_regressors=smooth_regressors,
             created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )
         self.top.grab_release(); self.top.destroy()

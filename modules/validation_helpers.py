@@ -14,3 +14,15 @@ def string_is_number(str):
         return True
     except ValueError:
         return False
+
+def string_to_bool(str):
+    result = str
+    if str == 'True': result = True
+    elif str == 'False': result = False
+    return result
+
+def number_to_bool_string(str):
+    result = str
+    if str == '1': result = 'True'
+    elif str == '0': result = 'False'
+    return result

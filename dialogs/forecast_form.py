@@ -55,7 +55,7 @@ class AddForecastDialog:
         ttk.Entry(frm, textvariable=self.from_var).grid(row=5, column=0, sticky="ew", padx=PAD)
         ttk.Entry(frm, textvariable=self.to_var).grid(row=5, column=1, sticky="ew", padx=PAD)
 
-        tk.Label(frm, text="Ймовірність/точність, %", bg=BLUE_BG).grid(row=6, column=0, sticky="w", padx=PAD, pady=(6,0))
+        tk.Label(frm, text="Максимальна похибка, %", bg=BLUE_BG).grid(row=6, column=0, sticky="w", padx=PAD, pady=(6,0))
         self.prob_var = tk.StringVar(value="20")
         ttk.Entry(frm, textvariable=self.prob_var, width=10).grid(row=7, column=0, sticky="w", padx=PAD)
 

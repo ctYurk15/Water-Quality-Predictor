@@ -99,6 +99,12 @@ class VisualizationsView(ttk.Frame):
         for obj in items or []:
             self.add_row(obj)
 
+    def remove_forecast_row(self, forecast_name):
+        for i, it in enumerate(self.rows):
+            if it['data']['forecast_name'] == forecast_name:
+                self._remove_row(it['row'])
+                break
+
     # ---- internals ----
     def _remove_row(self, row_widget):
         for i, it in enumerate(self.rows):

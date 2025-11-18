@@ -120,7 +120,8 @@ class App(tk.Tk):
             self.stack, 
             on_add_click=self._add_forecast_modal, 
             on_rows_changed=self._save_state,
-            models_view=self.models_view
+            models_view=self.models_view,
+            visualization_view=None # assigned below
         )
         self.forecasts_view.place(relx=0, rely=0, relwidth=1, relheight=1)
 
@@ -131,6 +132,8 @@ class App(tk.Tk):
             on_rows_changed=self._save_state
         )
         self.visualization_view.place(relx=0, rely=0, relwidth=1, relheight=1)
+
+        self.forecasts_view.visualization_view = self.visualization_view
 
     def show_view(self, key: str):
         if key == "timeseries":
@@ -258,6 +261,8 @@ class App(tk.Tk):
 
                         regressor_standardize_val = modal_meta['regressor_standardize']
                         if regressor_standardize_val != 'auto': regressor_standardize_val = bool(regressor_standardize_val)
+
+                        smooth_regressors = bool(modal_meta['smooth_regressors'])
                         
                         forecast_with_regressors(
                             timeseries_dir=Timeseries.fullPath(modal_meta['timeseries']),
@@ -279,8 +284,8 @@ class App(tk.Tk):
                             # regularization + smoothing
                             regressor_prior_scale=modal_meta['regressor_prior_scale'],          # try 0.05–0.5; smaller → smoother
                             regressor_standardize=regressor_standardize_val,
-                            regressor_mode="additive",                 # or "additive" explicitly
-                            smooth_regressors=True,
+                            regressor_mode=modal_meta['regressor_mode'],                 # or "additive" explicitly
+                            smooth_regressors=smooth_regressors,
                             smooth_window=7,                     # try 14 for extra smoothness
                             changepoint_prior_scale=0.05,        # try 0.02–0.1
                             seasonality_prior_scale=5.0,

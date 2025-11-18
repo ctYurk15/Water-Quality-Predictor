@@ -15,13 +15,14 @@ class ForecastsView(ttk.Frame):
     """
     title = "Передбачення"
 
-    def __init__(self, master, on_add_click, models_view, on_rows_changed=None):
+    def __init__(self, master, on_add_click, models_view, on_rows_changed=None, visualization_view=None):
         super().__init__(master, style="BaseView.TFrame")
         self.on_add_click = on_add_click
         self.on_rows_changed = on_rows_changed or (lambda: None)
         self.rows = []    # [{row, data_dict}]
         self.row_idx = 0
         self.models_view = models_view
+        self.visualization_view = visualization_view
 
         ttk.Label(self, text=self.title, style="Head.TLabel").pack(anchor="n", pady=(18, 8))
 
@@ -129,6 +130,7 @@ class ForecastsView(ttk.Frame):
                 it["row"].destroy(); 
                 self.rows.pop(i); 
                 Forecast.deleteItem(it['data'].get('name'))
+                self.visualization_view.remove_forecast_row(it['data'].get('name'))
                 break
         for idx, it in enumerate(self.rows, start=1):
             it["row"].grid_configure(row=idx)
