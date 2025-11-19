@@ -161,6 +161,39 @@ class AddOrEditModelDialog:
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
+        # Налаштування регресорів (3)
+        #was 120
+        self._subheader(r, "Кількість останніх точок для лінійної екстраполяції (3 -> 30)", col=0, colspan=3)
+        r += 1
+        self.regressor_future_linear_window = tk.StringVar(value=(initial or {}).get("regressor_future_linear_window", 10))
+        ttk.Entry(self.form, textvariable=self.regressor_future_linear_window)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Other settings (1)
+        self._subheader(r, "Розмір вікна згладжування (3 -> 30)", col=0, colspan=2)
+        self._subheader(r, "Чутливість до зміни тренду (шумність) (0.01 -> 1)", col=2, colspan=2)
+        r += 1
+        self.smooth_window = tk.StringVar(value=(initial or {}).get("smooth_window", 7))
+        self.changepoint_prior_scale = tk.StringVar(value=(initial or {}).get("changepoint_prior_scale", 0.05))
+        ttk.Entry(self.form, textvariable=self.smooth_window)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.changepoint_prior_scale)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Other settings (2)
+        self._subheader(r, "Сила впливу сезонності (3 -> 15)", col=0, colspan=2)
+        self._subheader(r, "Множник важливості регресора (0.1 -> 5)", col=2, colspan=2)
+        r += 1
+        self.seasonality_prior_scale = tk.StringVar(value=(initial or {}).get("seasonality_prior_scale", 5))
+        self.regressor_global_importance = tk.StringVar(value=(initial or {}).get("regressor_global_importance", 0.2))
+        ttk.Entry(self.form, textvariable=self.seasonality_prior_scale)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.regressor_global_importance)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
         # Кнопки
         btns = tk.Frame(self.form, bg=BLUE_BG)
         btns.grid(row=r, column=0, columnspan=4, sticky="e", padx=PADX, pady=(6, 4))
@@ -244,6 +277,13 @@ class AddOrEditModelDialog:
 
         regressor_mode = self.regressor_mode.get().strip()
         smooth_regressors = string_to_bool(self.smooth_regressors.get().strip())
+        regressor_future_linear_window = self.regressor_future_linear_window.get().strip()
+
+        smooth_window = self.smooth_window.get().strip()
+        changepoint_prior_scale = self.changepoint_prior_scale.get().strip()
+
+        seasonality_prior_scale = self.seasonality_prior_scale.get().strip()
+        regressor_global_importance = self.regressor_global_importance.get().strip()
 
         # optional params
         sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
@@ -285,6 +325,21 @@ class AddOrEditModelDialog:
         if type(smooth_regressors) != bool:
             messagebox.showwarning("Перевірка", "Вкажіть коректне значеня для згладжуванння регресорів")
             return
+        if string_is_number(regressor_future_linear_window) == False or regressor_future_linear_window == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну кількість останніх точок для лінійної екстраполяції")
+            return
+        if string_is_number(smooth_window) == False or smooth_window == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня розміру вікна згладжування")
+            return
+        if string_is_number(changepoint_prior_scale) == False or changepoint_prior_scale == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня чутливості до зміни тренду")
+            return
+        if string_is_number(seasonality_prior_scale) == False or seasonality_prior_scale == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня сили впливу сезонності")
+            return
+        if string_is_number(regressor_global_importance) == False or regressor_global_importance == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня множника важливості регресора")
+            return
 
         payload = dict(
             name=name,
@@ -302,6 +357,11 @@ class AddOrEditModelDialog:
             regressor_standardize=regressor_standardize,
             regressor_mode=regressor_mode,
             smooth_regressors=smooth_regressors,
+            regressor_future_linear_window=regressor_future_linear_window,
+            smooth_window=smooth_window,
+            changepoint_prior_scale=changepoint_prior_scale,
+            seasonality_prior_scale=seasonality_prior_scale,
+            regressor_global_importance=regressor_global_importance,
             created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )
         self.top.grab_release(); self.top.destroy()

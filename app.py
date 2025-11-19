@@ -282,16 +282,16 @@ class App(tk.Tk):
                             target_min=float(modal_meta['min_value']),             # floor
                             target_max=float(modal_meta['max_value']),             # cap
                             # regularization + smoothing
-                            regressor_prior_scale=modal_meta['regressor_prior_scale'],          # try 0.05–0.5; smaller → smoother
+                            regressor_prior_scale=float(modal_meta['regressor_prior_scale']),          # try 0.05–0.5; smaller → smoother
                             regressor_standardize=regressor_standardize_val,
                             regressor_mode=modal_meta['regressor_mode'],                 # or "additive" explicitly
                             smooth_regressors=smooth_regressors,
-                            smooth_window=7,                     # try 14 for extra smoothness
-                            changepoint_prior_scale=0.05,        # try 0.02–0.1
-                            seasonality_prior_scale=5.0,
-                            regressor_global_importance = 0.2,
+                            smooth_window=float(modal_meta['smooth_window']),                     # try 14 for extra smoothness
+                            changepoint_prior_scale=float(modal_meta['changepoint_prior_scale']),        # try 0.02–0.1
+                            seasonality_prior_scale=float(modal_meta['seasonality_prior_scale']),
+                            regressor_global_importance=float(modal_meta['regressor_global_importance']),
                             regressor_importance = regressors,
-                            regressor_future_ma_window=60,      # try 30–60 for daily data
+                            #regressor_future_ma_window=60,      # try 30–60 for daily data
                             regressor_future_strategy="linear",
                             regressor_future_linear_window=120
                         )
