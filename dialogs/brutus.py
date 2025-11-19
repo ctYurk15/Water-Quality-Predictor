@@ -7,17 +7,15 @@ from modules.validation_helpers import validate_date, string_is_number, string_t
 data_frequencies = ['D', 'W', 'M', 'H', 'Q', 'Y']
 regressor_modes = ['additive', 'multiplicative']
 
-class AddOrEditModelDialog:
+class BrutusDialog:
     """
-    Скролювана форма моделі.
+    Скролювана форма підбору оптимальних параметрів для моделі.
     on_save(payload: dict) викликається при збереженні.
-    Може приймати initial: dict для попереднього заповнення.
     """
     def __init__(self, master, on_save, *,
                  timeseries_options=None,
                  parameter_options=None,
                  regressor_options=None,
-                 initial=None,
                  models_view=None):
         self.master = master
         self.on_save = on_save
@@ -29,14 +27,10 @@ class AddOrEditModelDialog:
         self.regressor_options = regressor_options or []
 
         self.top = tk.Toplevel(master)
-        self.top.title("Нова модель" if not initial else "Редагувати модель")
+        self.top.title("Режим Brutus")
         self.top.transient(master); self.top.grab_set()
         self.top.configure(bg=BLUE_BG)
         self.top.resizable(True, True)
-        if initial != None:
-            self.initial_name = initial['name']
-        else:
-            self.initial_name = ''
 
         # стартовий розмір і центр
         self.top.update_idletasks()
@@ -66,9 +60,19 @@ class AddOrEditModelDialog:
         PADX = 8
         r = 0
 
+        self._subheader(1, "Вкажіть налаштування параметрів і межі для перебору.", col=0, colspan=4)
+        self._subheader(2, "В кінці створиться одна модель з оптимальними налаштуваннями,", col=0, colspan=4)
+        self._subheader(3, "що показала найкращий результат.", col=0, colspan=4)
+        self._subheader(4, "", col=0, colspan=4)
+
+        r = 5
+
+        #----- Цільові параметри
+
         # Назва
-        self._label(r, "…Назва моделі…"); r += 1
-        self.name_var = tk.StringVar(value=(initial or {}).get("name",""))
+        self._subheader(r, "Назва моделі", col=0, colspan=4)
+        r += 1
+        self.name_var = tk.StringVar(value='')
         ttk.Entry(self.form, textvariable=self.name_var)\
             .grid(row=r, column=0, columnspan=4, sticky="ew", padx=PADX, pady=(0,8)); r += 1
 
@@ -88,20 +92,10 @@ class AddOrEditModelDialog:
         self.param_list.selection_set(0)
         r += 1
 
-        # Навчання від–до
-        self._subheader(r, "Навчання від - до", col=0); r += 1
-        self.train_from = tk.StringVar(value=(initial or {}).get("train_from", "2003-01-01"))
-        self.train_to   = tk.StringVar(value=(initial or {}).get("train_to",   "2005-12-31"))
-        ttk.Entry(self.form, textvariable=self.train_from)\
-            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        ttk.Entry(self.form, textvariable=self.train_to)\
-            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        r += 1
-
         # Мін/макс
         self._subheader(r, "Мінімум / максимум", col=0, colspan=2); r += 1
-        self.min_value = tk.StringVar(value=(initial or {}).get("min_value", "0"))
-        self.max_value = tk.StringVar(value=(initial or {}).get("max_value", "6"))
+        self.min_value = tk.StringVar(value=0)
+        self.max_value = tk.StringVar(value=6)
         ttk.Entry(self.form, textvariable=self.min_value)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         ttk.Entry(self.form, textvariable=self.max_value)\
@@ -110,35 +104,67 @@ class AddOrEditModelDialog:
 
         # Частоти даних
         self._subheader(r, f"Частота навчальних & вихідних даних ({','.join(data_frequencies)})", col=0, colspan=4); r += 1
-        self.model_freq = tk.StringVar(value=(initial or {}).get("model_freq", "D"))
-        self.result_freq = tk.StringVar(value=(initial or {}).get("result_freq", "D"))
+        self.model_freq = tk.StringVar(value="D")
+        self.result_freq = tk.StringVar(value="D")
         ttk.Entry(self.form, textvariable=self.model_freq)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         ttk.Entry(self.form, textvariable=self.result_freq)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
-
-        # Регресори + ваги
-        self._subheader(r, "Регресори", col=0)
-        self._subheader(r, "Вага регресорів", col=2); r += 1
-
-        self.reg_list = self._make_scroll_list(self.form, row=r, column=0, columnspan=2, height=6, padx=PADX, pady=(0,8))
-        self.reg_list.config(selectmode="multiple")
-        for rg in self.regressor_options: 
-            self.reg_list.insert("end", rg)
-
-        self.weights_frame = tk.Frame(self.form, bg=BLUE_BG)
-        self.weights_frame.grid(row=r, column=2, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
+        
+        # Навчання від–до
+        self._subheader(r, "Цільові межі передбачення (від - до)", col=0, colspan=2); r += 1
+        self.target_forecast_from = tk.StringVar(value="2006-01-01")
+        self.target_forecast_to = tk.StringVar(value="2006-12-31")
+        ttk.Entry(self.form, textvariable=self.target_forecast_from)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.target_forecast_to)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
-        self.reg_list.bind("<<ListboxSelect>>", lambda e: self._rebuild_weights())
+        #----- Параметри для перебору
+
+        # Навчання від–до
+        self._subheader(r, "Межі навчання від - до (роки)", col=0, colspan=2); r += 1
+        self.train_from_year = tk.StringVar(value="2000")
+        self.train_to_year = tk.StringVar(value="2005")
+        ttk.Entry(self.form, textvariable=self.train_from_year)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.train_to_year)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Мін/макс вплив регресорів
+        self._subheader(r, "Вплив індивідуальних регресорів (мінімум - максимум)", col=0, colspan=4); r += 1
+        self.min_single_reg_value = tk.StringVar(value=0)
+        self.max_single_reg_value = tk.StringVar(value=10)
+        ttk.Entry(self.form, textvariable=self.min_single_reg_value)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.max_single_reg_value)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Регресори + ваги
+        #self._subheader(r, "Регресори", col=0)
+        #self._subheader(r, "Вага регресорів", col=2); r += 1
+        # 
+        #self.reg_list = self._make_scroll_list(self.form, row=r, column=0, columnspan=2, height=6, padx=PADX, pady=(0,8))
+        #self.reg_list.config(selectmode="multiple")
+        #for rg in self.regressor_options: 
+        #    self.reg_list.insert("end", rg)
+        #
+        #self.weights_frame = tk.Frame(self.form, bg=BLUE_BG)
+        #self.weights_frame.grid(row=r, column=2, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
+        #r += 1
+
+        #self.reg_list.bind("<<ListboxSelect>>", lambda e: self._rebuild_weights())
 
         # Налаштування регресорів (1)
         self._subheader(r, "Вплив регресорів (0.01 -> 10)", col=0, colspan=2)
         self._subheader(r, "Масштабувати регресор? (True, False, auto)", col=2, colspan=2)
         r += 1
-        self.regressor_prior_scale = tk.StringVar(value=(initial or {}).get("regressor_prior_scale", 0.5))
-        self.regressor_standardize = tk.StringVar(value=(initial or {}).get("regressor_standardize", "auto"))
+        self.regressor_prior_scale = tk.StringVar(value=0.5)
+        self.regressor_standardize = tk.StringVar(value="auto")
         regressor_standardize_val = self.regressor_standardize.get().strip()
         self.regressor_standardize.set(number_to_bool_string(regressor_standardize_val))
         ttk.Entry(self.form, textvariable=self.regressor_prior_scale)\
@@ -151,8 +177,8 @@ class AddOrEditModelDialog:
         self._subheader(r, f"Режим регресора ({','.join(regressor_modes)})", col=0, colspan=2)
         self._subheader(r, "Згладжувати регресор? (True, False)", col=2, colspan=2)
         r += 1
-        self.regressor_mode = tk.StringVar(value=(initial or {}).get("regressor_mode", 'additive'))
-        self.smooth_regressors = tk.StringVar(value=(initial or {}).get("smooth_regressors", '1'))
+        self.regressor_mode = tk.StringVar(value='additive')
+        self.smooth_regressors = tk.StringVar(value='1')
         smooth_regressors_val = self.smooth_regressors.get().strip()
         self.smooth_regressors.set(number_to_bool_string(smooth_regressors_val))
         ttk.Entry(self.form, textvariable=self.regressor_mode)\
@@ -165,7 +191,7 @@ class AddOrEditModelDialog:
         #was 120
         self._subheader(r, "Кількість останніх точок для лінійної екстраполяції (3 -> 30)", col=0, colspan=3)
         r += 1
-        self.regressor_future_linear_window = tk.StringVar(value=(initial or {}).get("regressor_future_linear_window", 10))
+        self.regressor_future_linear_window = tk.StringVar(value=10)
         ttk.Entry(self.form, textvariable=self.regressor_future_linear_window)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
@@ -174,8 +200,8 @@ class AddOrEditModelDialog:
         self._subheader(r, "Розмір вікна згладжування (3 -> 30)", col=0, colspan=2)
         self._subheader(r, "Чутливість до зміни тренду (шумність) (0.01 -> 1)", col=2, colspan=2)
         r += 1
-        self.smooth_window = tk.StringVar(value=(initial or {}).get("smooth_window", 7))
-        self.changepoint_prior_scale = tk.StringVar(value=(initial or {}).get("changepoint_prior_scale", 0.05))
+        self.smooth_window = tk.StringVar(value=7)
+        self.changepoint_prior_scale = tk.StringVar(value=0.05)
         ttk.Entry(self.form, textvariable=self.smooth_window)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         ttk.Entry(self.form, textvariable=self.changepoint_prior_scale)\
@@ -186,8 +212,8 @@ class AddOrEditModelDialog:
         self._subheader(r, "Сила впливу сезонності (3 -> 15)", col=0, colspan=2)
         self._subheader(r, "Множник важливості регресора (0.1 -> 5)", col=2, colspan=2)
         r += 1
-        self.seasonality_prior_scale = tk.StringVar(value=(initial or {}).get("seasonality_prior_scale", 5))
-        self.regressor_global_importance = tk.StringVar(value=(initial or {}).get("regressor_global_importance", 0.2))
+        self.seasonality_prior_scale = tk.StringVar(value=5)
+        self.regressor_global_importance = tk.StringVar(value=0.2)
         ttk.Entry(self.form, textvariable=self.seasonality_prior_scale)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         ttk.Entry(self.form, textvariable=self.regressor_global_importance)\
@@ -201,24 +227,7 @@ class AddOrEditModelDialog:
         tk.Button(btns, text="Скасувати", bg=RED_BG, command=self.top.destroy).pack(side="left")
 
         # --- initial selections/weights ---
-        self.weights = {}
-        if initial:
-            # timeseries
-            if initial.get("timeseries") in self.timeseries_options:
-                self.ts_list.selection_clear(0, "end")
-                self.ts_list.selection_set(self.timeseries_options.index(initial["timeseries"]))
-                self.ts_list.see(self.timeseries_options.index(initial["timeseries"]))
-            # parameter
-            if initial.get("parameter") in self.parameter_options:
-                self.param_list.selection_clear(0, "end")
-                self.param_list.selection_set(self.parameter_options.index(initial["parameter"]))
-                self.param_list.see(self.parameter_options.index(initial["parameter"]))
-            # regressors + weights
-            regs = initial.get("regressors") or []
-            idxs = [self.regressor_options.index(r) for r in regs if r in self.regressor_options]
-            for i in idxs: self.reg_list.selection_set(i)
-            self.weights = {k: str(v) for k, v in (initial.get("weights") or {}).items()}
-        self._rebuild_weights()
+        #self.weights = {}
 
     # --- helpers -------------------------------------------------------------
     def _label(self, row, text, col=0):
@@ -228,21 +237,21 @@ class AddOrEditModelDialog:
         tk.Label(self.form, text=text, bg=BLUE_BG, font=("", 10, "bold"), anchor='w')\
             .grid(row=row, column=col, sticky="ww", padx=8, pady=(6,2),columnspan=colspan)
 
-    def _rebuild_weights(self):
-        for w in self.weights_frame.winfo_children(): w.destroy()
-        self.weight_vars = {}
-        sel_idx = self.reg_list.curselection()
-        if not sel_idx:
-            tk.Label(self.weights_frame, text="(не вибрано)", bg=BLUE_BG).pack(anchor="w")
-            return
-        for i in sel_idx:
-            name = self.reg_list.get(i)
-            var = tk.StringVar(value=self.weights.get(name, "1"))
-            self.weight_vars[name] = var
-            row = tk.Frame(self.weights_frame, bg=BLUE_BG)
-            row.pack(fill="x", pady=2)
-            tk.Label(row, text=name, bg=BLUE_BG, width=14, anchor="w").pack(side="left")
-            ttk.Entry(row, textvariable=var, width=10).pack(side="left")
+    #def _rebuild_weights(self):
+    #    for w in self.weights_frame.winfo_children(): w.destroy()
+    #    self.weight_vars = {}
+    #    sel_idx = self.reg_list.curselection()
+    #    if not sel_idx:
+    #        tk.Label(self.weights_frame, text="(не вибрано)", bg=BLUE_BG).pack(anchor="w")
+    ##        return
+    #    for i in sel_idx:
+    #        name = self.reg_list.get(i)
+    #        var = tk.StringVar(value=self.weights.get(name, "1"))
+    #        self.weight_vars[name] = var
+    #        row = tk.Frame(self.weights_frame, bg=BLUE_BG)
+    #        row.pack(fill="x", pady=2)
+    #        tk.Label(row, text=name, bg=BLUE_BG, width=14, anchor="w").pack(side="left")
+    #        ttk.Entry(row, textvariable=var, width=10).pack(side="left")
 
     # --- save ----------------------------------------------------------------
     def _save(self):
@@ -251,7 +260,7 @@ class AddOrEditModelDialog:
             messagebox.showwarning("Перевірка", "Вкажіть назву моделі.")
             return
         existing_model = self.models_view.find_model_by_name(name)
-        if existing_model != {} and self.initial_name != name:
+        if existing_model != {}:
             messagebox.showwarning("Перевірка", "Така назва вже існує")
             return
 
@@ -259,11 +268,19 @@ class AddOrEditModelDialog:
         ts = self.ts_list.get(self.ts_list.curselection()[0]) if self.ts_list.curselection() else None
         param = self.param_list.get(self.param_list.curselection()[0]) if self.param_list.curselection() else None
 
-        train_from = self.train_from.get().strip()
-        train_to = self.train_to.get().strip()
+        target_forecast_from = self.target_forecast_from.get().strip()
+        target_forecast_to = self.target_forecast_to.get().strip()
 
         min_value = self.min_value.get().strip()
         max_value = self.max_value.get().strip()
+
+        train_from_year = self.train_from_year.get().strip()
+        train_to_year = self.train_to_year.get().strip()
+
+        min_single_reg_value = self.min_single_reg_value.get().strip()
+        max_single_reg_value = self.max_single_reg_value.get().strip()
+
+        ###
 
         result_freq = self.result_freq.get().strip()
         model_freq = self.model_freq.get().strip()
@@ -286,8 +303,8 @@ class AddOrEditModelDialog:
         regressor_global_importance = self.regressor_global_importance.get().strip()
 
         # optional params
-        sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
-        weights = {rg: self.weight_vars[rg].get() for rg in self.weight_vars}
+        #sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
+        #weights = {rg: self.weight_vars[rg].get() for rg in self.weight_vars}
         
         if ts == None:
             messagebox.showwarning("Перевірка", "Вкажіть часовий ряд")
@@ -295,11 +312,17 @@ class AddOrEditModelDialog:
         if param == None:
             messagebox.showwarning("Перевірка", "Вкажіть назву параметра")
             return
-        if validate_date(train_from) == False:
-            messagebox.showwarning("Перевірка", "Вкажіть коректну дату початку навчання")
+        if validate_date(target_forecast_from) == False:
+            messagebox.showwarning("Перевірка", "Вкажіть коректну цільову дату початку передбачення")
             return
-        if validate_date(train_to) == False:
-            messagebox.showwarning("Перевірка", "Вкажіть коректну дату кінця навчання")
+        if validate_date(target_forecast_to) == False:
+            messagebox.showwarning("Перевірка", "Вкажіть коректну цільову дату кінця передбачення")
+            return
+        if string_is_number(train_from_year) == False or train_from_year == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний початковий рік навчання")
+            return
+        if string_is_number(train_to_year) == False or train_to_year == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний кінцевий рік навчання")
             return
         if string_is_number(min_value) == False or min_value == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректне мінімальне значення")
@@ -307,6 +330,13 @@ class AddOrEditModelDialog:
         if string_is_number(max_value) == False or max_value == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення")
             return
+        if string_is_number(min_single_reg_value) == False or min_single_reg_value == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне мінімальне значення впливу індивідуальних регресорів")
+            return
+        if string_is_number(max_single_reg_value) == False or max_single_reg_value == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення впливу індивідуальних регресорів")
+            return
+
         if model_freq not in data_frequencies:
             messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту навчальних даних ({','.join(data_frequencies)})")
             return

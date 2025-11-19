@@ -15,6 +15,7 @@ from dialogs.visualization_create import CreateVisualizationDialog
 from dialogs.visualization_viewer import VisualizationViewer
 from views.visualization_view import VisualizationsView
 from dialogs.loading import LoadingWindow
+from dialogs.brutus import BrutusDialog
 
 from src.timeseries import Timeseries
 from src.forecast import Forecast
@@ -48,18 +49,11 @@ class App(tk.Tk):
     def _build_menubar(self):
         menubar = tk.Menu(self)
 
-        #view_menu = tk.Menu(menubar, tearoff=0)
-        #view_menu.add_command(label="Часові ряди", command=lambda: self.show_view("timeseries"))
-        #view_menu.add_command(label="Моделі", command=lambda: self.show_view("models"))
-        #menubar.add_cascade(label="Вигляд", menu=view_menu)
-
-        help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label="Про програму", command=self._about)
-        menubar.add_cascade(label="Допомога", menu=help_menu)
-
         file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Режим Brutus", command=self._brutus)
+        file_menu.add_command(label="Про програму", command=self._about)
         file_menu.add_command(label="Вихід", command=self.destroy, accelerator="Ctrl+Q")
-        menubar.add_cascade(label="Файл", menu=file_menu)
+        menubar.add_cascade(label="Більше", menu=file_menu)
 
         self.config(menu=menubar)
         self.bind_all("<Control-q>", lambda e: self.destroy())
@@ -413,14 +407,26 @@ class App(tk.Tk):
             return
         save_state(self._collect_state())
 
-
-
-
-    # ---------- Help ----------
+    # ---------- More ----------
     def _about(self):
         messagebox.showinfo("Про програму",
                             "ІС для прогнозування забруднень водних ресурсів України\n"
                             "Каркас GUI (Tkinter).\n© Магістерський проект, автор - ctyurk15")
+    def _brutus(self):
+        timeseries = Timeseries.getEntries(True, True)
+        params = Timeseries.getParams()
+
+        def on_save(self):
+            messagebox.showinfo("Готово")
+
+        BrutusDialog(
+            self,
+            on_save=on_save,
+            timeseries_options=timeseries,
+            parameter_options=params,
+            regressor_options=params,
+            models_view=self.models_view
+        )
 
 if __name__ == "__main__":
     App().mainloop()
