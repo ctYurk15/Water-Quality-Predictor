@@ -136,87 +136,77 @@ class BrutusDialog:
 
         # Мін/макс вплив регресорів
         self._subheader(r, "Вплив індивідуальних регресорів (мінімум - максимум)", col=0, colspan=4); r += 1
-        self.min_single_reg_value = tk.StringVar(value=0)
-        self.max_single_reg_value = tk.StringVar(value=10)
-        ttk.Entry(self.form, textvariable=self.min_single_reg_value)\
+        self.min_single_regressor_value = tk.StringVar(value=0)
+        self.max_single_regressor_value = tk.StringVar(value=5)
+        ttk.Entry(self.form, textvariable=self.min_single_regressor_value)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        ttk.Entry(self.form, textvariable=self.max_single_reg_value)\
+        ttk.Entry(self.form, textvariable=self.max_single_regressor_value)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
-        # Регресори + ваги
-        #self._subheader(r, "Регресори", col=0)
-        #self._subheader(r, "Вага регресорів", col=2); r += 1
-        # 
-        #self.reg_list = self._make_scroll_list(self.form, row=r, column=0, columnspan=2, height=6, padx=PADX, pady=(0,8))
-        #self.reg_list.config(selectmode="multiple")
-        #for rg in self.regressor_options: 
-        #    self.reg_list.insert("end", rg)
-        #
-        #self.weights_frame = tk.Frame(self.form, bg=BLUE_BG)
-        #self.weights_frame.grid(row=r, column=2, columnspan=2, sticky="nsew", padx=PADX, pady=(0,8))
-        #r += 1
-
-        #self.reg_list.bind("<<ListboxSelect>>", lambda e: self._rebuild_weights())
-
         # Налаштування регресорів (1)
-        self._subheader(r, "Вплив регресорів (0.01 -> 10)", col=0, colspan=2)
-        self._subheader(r, "Масштабувати регресор? (True, False, auto)", col=2, colspan=2)
+        self._subheader(r, "Вплив регресорів (від - до)", col=0, colspan=2)
         r += 1
-        self.regressor_prior_scale = tk.StringVar(value=0.5)
-        self.regressor_standardize = tk.StringVar(value="auto")
-        regressor_standardize_val = self.regressor_standardize.get().strip()
-        self.regressor_standardize.set(number_to_bool_string(regressor_standardize_val))
-        ttk.Entry(self.form, textvariable=self.regressor_prior_scale)\
+        self.regressor_prior_scale_min = tk.StringVar(value=0.5)
+        self.regressor_prior_scale_max = tk.StringVar(value=10)
+        ttk.Entry(self.form, textvariable=self.regressor_prior_scale_min)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        ttk.Entry(self.form, textvariable=self.regressor_standardize)\
+        ttk.Entry(self.form, textvariable=self.regressor_prior_scale_max)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
         # Налаштування регресорів (2)
-        self._subheader(r, f"Режим регресора ({','.join(regressor_modes)})", col=0, colspan=2)
-        self._subheader(r, "Згладжувати регресор? (True, False)", col=2, colspan=2)
+        self._subheader(r, "Кількість останніх точок для лінійної екстраполяції (від - до)", col=0, colspan=4)
         r += 1
-        self.regressor_mode = tk.StringVar(value='additive')
-        self.smooth_regressors = tk.StringVar(value='1')
-        smooth_regressors_val = self.smooth_regressors.get().strip()
-        self.smooth_regressors.set(number_to_bool_string(smooth_regressors_val))
-        ttk.Entry(self.form, textvariable=self.regressor_mode)\
+        self.regressor_future_linear_window_min = tk.StringVar(value=3)
+        self.regressor_future_linear_window_max = tk.StringVar(value=30)
+        ttk.Entry(self.form, textvariable=self.regressor_future_linear_window_min)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        ttk.Entry(self.form, textvariable=self.smooth_regressors)\
+        ttk.Entry(self.form, textvariable=self.regressor_future_linear_window_max)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
-        # Налаштування регресорів (3)
-        #was 120
-        self._subheader(r, "Кількість останніх точок для лінійної екстраполяції (3 -> 30)", col=0, colspan=3)
-        r += 1
-        self.regressor_future_linear_window = tk.StringVar(value=10)
-        ttk.Entry(self.form, textvariable=self.regressor_future_linear_window)\
-            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        r += 1
-
         # Other settings (1)
-        self._subheader(r, "Розмір вікна згладжування (3 -> 30)", col=0, colspan=2)
-        self._subheader(r, "Чутливість до зміни тренду (шумність) (0.01 -> 1)", col=2, colspan=2)
+        self._subheader(r, "Розмір вікна згладжування (від - до)", col=0, colspan=2)
         r += 1
-        self.smooth_window = tk.StringVar(value=7)
-        self.changepoint_prior_scale = tk.StringVar(value=0.05)
-        ttk.Entry(self.form, textvariable=self.smooth_window)\
+        self.smooth_window_min = tk.StringVar(value=3)
+        self.smooth_window_max = tk.StringVar(value=30)
+        ttk.Entry(self.form, textvariable=self.smooth_window_min)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        ttk.Entry(self.form, textvariable=self.changepoint_prior_scale)\
+        ttk.Entry(self.form, textvariable=self.smooth_window_max)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
         # Other settings (2)
-        self._subheader(r, "Сила впливу сезонності (3 -> 15)", col=0, colspan=2)
-        self._subheader(r, "Множник важливості регресора (0.1 -> 5)", col=2, colspan=2)
+        self._subheader(r, "Чутливість до зміни тренду (шумність) (від - до)", col=0, colspan=4)
         r += 1
-        self.seasonality_prior_scale = tk.StringVar(value=5)
-        self.regressor_global_importance = tk.StringVar(value=0.2)
-        ttk.Entry(self.form, textvariable=self.seasonality_prior_scale)\
+        self.changepoint_prior_scale_min = tk.StringVar(value=0.01)
+        self.changepoint_prior_scale_max = tk.StringVar(value=1)
+        ttk.Entry(self.form, textvariable=self.changepoint_prior_scale_min)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
-        ttk.Entry(self.form, textvariable=self.regressor_global_importance)\
+        ttk.Entry(self.form, textvariable=self.changepoint_prior_scale_max)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Other settings (3)
+        self._subheader(r, "Сила впливу сезонності (від - до)", col=0, colspan=4)
+        r += 1
+        self.seasonality_prior_scale_min = tk.StringVar(value=0.01)
+        self.seasonality_prior_scale_max = tk.StringVar(value=1)
+        ttk.Entry(self.form, textvariable=self.seasonality_prior_scale_min)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.seasonality_prior_scale_max)\
+            .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        r += 1
+
+        # Other settings (4)
+        self._subheader(r, "Множник важливості регресора (від - до)", col=0, colspan=4)
+        r += 1
+        self.regressor_global_importance_min = tk.StringVar(value=0.1)
+        self.regressor_global_importance_max = tk.StringVar(value=5)
+        ttk.Entry(self.form, textvariable=self.regressor_global_importance_min)\
+            .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
+        ttk.Entry(self.form, textvariable=self.regressor_global_importance_max)\
             .grid(row=r, column=2, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
         r += 1
 
@@ -271,36 +261,43 @@ class BrutusDialog:
         target_forecast_from = self.target_forecast_from.get().strip()
         target_forecast_to = self.target_forecast_to.get().strip()
 
+        result_freq = self.result_freq.get().strip()
+        model_freq = self.model_freq.get().strip()
+
         min_value = self.min_value.get().strip()
         max_value = self.max_value.get().strip()
 
         train_from_year = self.train_from_year.get().strip()
         train_to_year = self.train_to_year.get().strip()
 
-        min_single_reg_value = self.min_single_reg_value.get().strip()
-        max_single_reg_value = self.max_single_reg_value.get().strip()
+        min_single_regressor_value = self.min_single_regressor_value.get().strip()
+        max_single_regressor_value = self.max_single_regressor_value.get().strip()
+
+        regressor_prior_scale_min = self.regressor_prior_scale_min.get().strip()
+        regressor_prior_scale_max = self.regressor_prior_scale_max.get().strip()
+
+        regressor_future_linear_window_min = self.regressor_future_linear_window_min.get().strip()
+        regressor_future_linear_window_max = self.regressor_future_linear_window_max.get().strip()
+
+        smooth_window_min = self.smooth_window_min.get().strip()
+        smooth_window_max = self.smooth_window_max.get().strip()
+
+        changepoint_prior_scale_min = self.changepoint_prior_scale_min.get().strip()
+        changepoint_prior_scale_max = self.changepoint_prior_scale_max.get().strip()
+
+        seasonality_prior_scale_min = self.seasonality_prior_scale_min.get().strip()
+        seasonality_prior_scale_max = self.seasonality_prior_scale_max.get().strip()
+
+        regressor_global_importance_min = self.regressor_global_importance_min.get().strip()
+        regressor_global_importance_max = self.regressor_global_importance_max.get().strip()
+
+        #auto-filled
+        regressors = self.regressor_options
+        regressor_standardize = [True, False, "auto"]
+        regressor_mode = regressor_modes
+        smooth_regressors = [True, False]
 
         ###
-
-        result_freq = self.result_freq.get().strip()
-        model_freq = self.model_freq.get().strip()
-
-        regressor_prior_scale = self.regressor_prior_scale.get().strip()
-
-        regressor_standardize_raw = self.regressor_standardize.get().strip()
-        regressor_standardize = ''
-        if regressor_standardize_raw == 'auto': regressor_standardize = 'auto'
-        else: regressor_standardize = string_to_bool(regressor_standardize_raw)
-
-        regressor_mode = self.regressor_mode.get().strip()
-        smooth_regressors = string_to_bool(self.smooth_regressors.get().strip())
-        regressor_future_linear_window = self.regressor_future_linear_window.get().strip()
-
-        smooth_window = self.smooth_window.get().strip()
-        changepoint_prior_scale = self.changepoint_prior_scale.get().strip()
-
-        seasonality_prior_scale = self.seasonality_prior_scale.get().strip()
-        regressor_global_importance = self.regressor_global_importance.get().strip()
 
         # optional params
         #sel_regs = [self.reg_list.get(i) for i in self.reg_list.curselection()]
@@ -318,6 +315,12 @@ class BrutusDialog:
         if validate_date(target_forecast_to) == False:
             messagebox.showwarning("Перевірка", "Вкажіть коректну цільову дату кінця передбачення")
             return
+        if model_freq not in data_frequencies:
+            messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту навчальних даних ({','.join(data_frequencies)})")
+            return
+        if result_freq not in data_frequencies:
+            messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту вихідних даних ({','.join(data_frequencies)})")
+            return
         if string_is_number(train_from_year) == False or train_from_year == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректний початковий рік навчання")
             return
@@ -330,72 +333,92 @@ class BrutusDialog:
         if string_is_number(max_value) == False or max_value == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення")
             return
-        if string_is_number(min_single_reg_value) == False or min_single_reg_value == '':
+        if string_is_number(min_single_regressor_value) == False or min_single_regressor_value == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректне мінімальне значення впливу індивідуальних регресорів")
             return
-        if string_is_number(max_single_reg_value) == False or max_single_reg_value == '':
+        if string_is_number(max_single_regressor_value) == False or max_single_regressor_value == '':
             messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення впливу індивідуальних регресорів")
             return
-
-        if model_freq not in data_frequencies:
-            messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту навчальних даних ({','.join(data_frequencies)})")
+        if string_is_number(regressor_prior_scale_min) == False or regressor_prior_scale_min == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне мінімальне значення впливу регресорів")
             return
-        if result_freq not in data_frequencies:
-            messagebox.showwarning("Перевірка", f"Вкажіть коректну частоту вихідних даних ({','.join(data_frequencies)})")
+        if string_is_number(regressor_prior_scale_max) == False or regressor_prior_scale_max == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректне максимальне значення впливу регресорів")
             return
-        if string_is_number(regressor_prior_scale) == False or regressor_prior_scale == '':
-            messagebox.showwarning("Перевірка", "Вкажіть коректний вплив регресорів")
-            return regressor_standardize
-        if type(regressor_standardize) != bool and regressor_standardize != 'auto':
-            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня для масштабування регресорів")
+        if string_is_number(regressor_future_linear_window_min) == False or regressor_future_linear_window_min == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну мінімальну кількість останніх точок для лінійної екстраполяції")
             return
-        if regressor_mode not in regressor_modes:
-            messagebox.showwarning("Перевірка", f"Вкажіть коректний режм регресора ({','.join(regressor_modes)})")
+        if string_is_number(regressor_future_linear_window_max) == False or regressor_future_linear_window_max == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну максимальну кількість останніх точок для лінійної екстраполяції")
             return
-        if type(smooth_regressors) != bool:
-            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня для згладжуванння регресорів")
+        if string_is_number(smooth_window_min) == False or smooth_window_min == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний мінімальний розмір вікна згладжування")
             return
-        if string_is_number(regressor_future_linear_window) == False or regressor_future_linear_window == '':
-            messagebox.showwarning("Перевірка", "Вкажіть коректну кількість останніх точок для лінійної екстраполяції")
+        if string_is_number(smooth_window_max) == False or smooth_window_max == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний максимальний розмір вікна згладжування")
             return
-        if string_is_number(smooth_window) == False or smooth_window == '':
-            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня розміру вікна згладжування")
+        if string_is_number(changepoint_prior_scale_min) == False or changepoint_prior_scale_min == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну мінімальну чутливість до зміни тренду")
             return
-        if string_is_number(changepoint_prior_scale) == False or changepoint_prior_scale == '':
-            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня чутливості до зміни тренду")
+        if string_is_number(changepoint_prior_scale_max) == False or changepoint_prior_scale_max == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну максимальну чутливість до зміни тренду")
             return
-        if string_is_number(seasonality_prior_scale) == False or seasonality_prior_scale == '':
-            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня сили впливу сезонності")
+        if string_is_number(seasonality_prior_scale_min) == False or seasonality_prior_scale_min == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну мінімальну cилу впливу сезонності")
             return
-        if string_is_number(regressor_global_importance) == False or regressor_global_importance == '':
-            messagebox.showwarning("Перевірка", "Вкажіть коректне значеня множника важливості регресора")
+        if string_is_number(seasonality_prior_scale_max) == False or seasonality_prior_scale_max == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректну максимальну cилу впливу сезонності")
+            return
+        if string_is_number(regressor_global_importance_min) == False or regressor_global_importance_min == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний мінімальний множник важливості регресора")
+            return
+        if string_is_number(regressor_global_importance_max) == False or regressor_global_importance_max == '':
+            messagebox.showwarning("Перевірка", "Вкажіть коректний максимальний множник важливості регресора")
             return
 
         payload = dict(
             name=name,
             timeseries=ts,
             parameter=param,
-            train_from=train_from,
-            train_to=train_to,
-            min_value=min_value,
-            max_value=max_value,
+            target_forecast_from=target_forecast_from,
+            target_forecast_to=target_forecast_to,
             result_freq=result_freq,
             model_freq=model_freq,
-            regressors=sel_regs,
-            weights=weights,
-            regressor_prior_scale=regressor_prior_scale,
+            min_value=min_value,
+            max_value=max_value,
+            train_from_year=train_from_year,
+            train_to_year=train_to_year,
+            min_single_regressor_value=min_single_regressor_value,
+            max_single_regressor_value=max_single_regressor_value,
+            regressor_prior_scale_min=regressor_prior_scale_min,
+            regressor_prior_scale_max=regressor_prior_scale_max,
+            regressor_future_linear_window_min=regressor_future_linear_window_min,
+            regressor_future_linear_window_max=regressor_future_linear_window_max,
+            smooth_window_min=smooth_window_min,
+            smooth_window_max=smooth_window_max,
+            changepoint_prior_scale_min=changepoint_prior_scale_min,
+            changepoint_prior_scale_max=changepoint_prior_scale_max,
+            seasonality_prior_scale_min=seasonality_prior_scale_min,
+            seasonality_prior_scale_max=seasonality_prior_scale_max,
+            regressor_global_importance_min=regressor_global_importance_min,
+            regressor_global_importance_max=regressor_global_importance_max,
+            
+            regressors=regressors,
             regressor_standardize=regressor_standardize,
             regressor_mode=regressor_mode,
             smooth_regressors=smooth_regressors,
-            regressor_future_linear_window=regressor_future_linear_window,
-            smooth_window=smooth_window,
-            changepoint_prior_scale=changepoint_prior_scale,
-            seasonality_prior_scale=seasonality_prior_scale,
-            regressor_global_importance=regressor_global_importance,
+
             created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )
-        self.top.grab_release(); self.top.destroy()
-        self.on_save(payload)
+
+        self.top.grab_release()
+        self.top.destroy()
+        
+        self.start_process(payload)
+
+    def start_process(self, payload):
+        print(payload)
+        self.on_save({})
 
     def _make_scroll_list(self, parent, *, row, column, columnspan=2, height=6, padx=8, pady=(0,8)):
         """Створює Listbox із вертикальним Scrollbar у фіксованій висоті."""

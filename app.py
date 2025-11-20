@@ -416,7 +416,7 @@ class App(tk.Tk):
         timeseries = Timeseries.getEntries(True, True)
         params = Timeseries.getParams()
 
-        def on_save(self):
+        def on_save(data):
             messagebox.showinfo("Готово")
 
         BrutusDialog(
