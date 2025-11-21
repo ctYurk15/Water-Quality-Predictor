@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 from theme import BLUE_BG, BG_MAIN, RED_BG
 from modules.validation_helpers import validate_date, string_is_number, string_to_bool, number_to_bool_string
+from modules.brutus_generator import BrutusGenerator
 
 data_frequencies = ['D', 'W', 'M', 'H', 'Q', 'Y']
 regressor_modes = ['additive', 'multiplicative']
@@ -10,15 +11,13 @@ regressor_modes = ['additive', 'multiplicative']
 class BrutusDialog:
     """
     Скролювана форма підбору оптимальних параметрів для моделі.
-    on_save(payload: dict) викликається при збереженні.
     """
-    def __init__(self, master, on_save, *,
+    def __init__(self, master, *,
                  timeseries_options=None,
                  parameter_options=None,
                  regressor_options=None,
                  models_view=None):
         self.master = master
-        self.on_save = on_save
 
         self.models_view = models_view
 
@@ -418,7 +417,9 @@ class BrutusDialog:
 
     def start_process(self, payload):
         print(payload)
-        self.on_save({})
+
+        generator = BrutusGenerator(self.master, payload)
+        generator.start()
 
     def _make_scroll_list(self, parent, *, row, column, columnspan=2, height=6, padx=8, pady=(0,8)):
         """Створює Listbox із вертикальним Scrollbar у фіксованій висоті."""

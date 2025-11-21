@@ -15,7 +15,7 @@ from dialogs.visualization_create import CreateVisualizationDialog
 from dialogs.visualization_viewer import VisualizationViewer
 from views.visualization_view import VisualizationsView
 from dialogs.loading import LoadingWindow
-from dialogs.brutus import BrutusDialog
+from dialogs.brutus_form import BrutusDialog
 
 from src.timeseries import Timeseries
 from src.forecast import Forecast
@@ -416,12 +416,8 @@ class App(tk.Tk):
         timeseries = Timeseries.getEntries(True, True)
         params = Timeseries.getParams()
 
-        def on_save(data):
-            messagebox.showinfo("Готово")
-
         BrutusDialog(
             self,
-            on_save=on_save,
             timeseries_options=timeseries,
             parameter_options=params,
             regressor_options=params,
