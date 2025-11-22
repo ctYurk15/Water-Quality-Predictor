@@ -135,7 +135,7 @@ class BrutusDialog:
 
         # Мін/макс вплив регресорів
         self._subheader(r, "Вплив індивідуальних регресорів (мінімум - максимум)", col=0, colspan=4); r += 1
-        self.min_single_regressor_value = tk.StringVar(value=0)
+        self.min_single_regressor_value = tk.StringVar(value=0.1)
         self.max_single_regressor_value = tk.StringVar(value=5)
         ttk.Entry(self.form, textvariable=self.min_single_regressor_value)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))
@@ -407,7 +407,7 @@ class BrutusDialog:
             regressor_mode=regressor_mode,
             smooth_regressors=smooth_regressors,
 
-            created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
+            #created_at=datetime.now().strftime("%d.%m.%Y %H:%M"),
         )
 
         self.top.grab_release()
@@ -416,7 +416,7 @@ class BrutusDialog:
         self.start_process(payload)
 
     def start_process(self, payload):
-        print(payload)
+        #print(payload)
 
         generator = BrutusGenerator(self.master, payload)
         generator.start()

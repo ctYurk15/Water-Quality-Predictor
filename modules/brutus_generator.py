@@ -8,6 +8,7 @@ from tkinter import ttk, colorchooser, messagebox
 
 from dialogs.loading import LoadingWindow
 from modules.prophet_multivar import forecast_with_regressors
+from modules.helpers import smart_param_generator
 
 class BrutusGenerator:
     """
@@ -21,6 +22,9 @@ class BrutusGenerator:
     def start(self):
 
         self.lw.top.update_idletasks()
+
+        target_params = {}
+        variations = {}
 
         def worker():
             err = None
@@ -39,17 +43,22 @@ class BrutusGenerator:
                     max_value=self.payload['max_value'],
                 )
 
-                max_steps = 50
+                max_steps = 25
+
+                single_regressor_value=self.get_variations_in_range(
+                    float(self.payload['min_single_regressor_value']), 
+                    float(self.payload['max_single_regressor_value']), 
+                    max_steps=10)
+
+                regressors = {}
+                for regressor in self.payload['regressors']:
+                    regressors[regressor] = single_regressor_value
 
                 iteration_params = dict(
                     train_year=self.get_variations_in_range(
                         float(self.payload['train_from_year']), 
                         float(self.payload['train_to_year']), 
                         1),
-                    single_regressor_value=self.get_variations_in_range(
-                        float(self.payload['min_single_regressor_value']), 
-                        float(self.payload['max_single_regressor_value']), 
-                        max_steps=max_steps),
                     regressor_prior_scale=self.get_variations_in_range(
                         min_val=float(self.payload['regressor_prior_scale_min']), 
                         max_val=float(self.payload['regressor_prior_scale_max']),
@@ -62,10 +71,27 @@ class BrutusGenerator:
                         min_val=float(self.payload['smooth_window_min']), 
                         max_val=float(self.payload['smooth_window_max']),
                         max_steps=max_steps), 
+                    changepoint_prior_scale=self.get_variations_in_range(
+                        min_val=float(self.payload['changepoint_prior_scale_min']), 
+                        max_val=float(self.payload['changepoint_prior_scale_max']),
+                        max_steps=max_steps),
+                    seasonality_prior_scale=self.get_variations_in_range(
+                        min_val=float(self.payload['seasonality_prior_scale_min']), 
+                        max_val=float(self.payload['seasonality_prior_scale_max']),
+                        max_steps=max_steps),
+                    regressor_global_importance=self.get_variations_in_range(
+                        min_val=float(self.payload['regressor_global_importance_min']), 
+                        max_val=float(self.payload['regressor_global_importance_max']),
+                        max_steps=max_steps),
+                    regressor_standardize=self.payload['regressor_standardize'],
+                    regressor_mode=self.payload['regressor_mode'],
+                    smooth_regressors=self.payload['smooth_regressors'],
+                    regressors=regressors
                 )
 
                 print(target_params)
                 print("\n")
+                #170 000 000 000 000 000 000 000 000 000 000 000 000 000 (max-steps - 50)
                 print(iteration_params)
 
             except Exception as e:
@@ -79,7 +105,7 @@ class BrutusGenerator:
                     if err:
                         messagebox.showerror("Помилка", str(err), parent=self.container)
                     else:
-                        self.iterate_variants()
+                        self.iterate_variants(target_params, iteration_params)
                     
 
                 self.container.after(0, finish)
@@ -87,11 +113,14 @@ class BrutusGenerator:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def iterate_variants(self):
+    def iterate_variants(self, target_params, iteration_params):
 
-        total_combinations_count = 10
+        n_main_samples = 2000
+        n_regressor_sets = 30
 
-        self.lw.change_text(f"Прогрес: 0 / {total_combinations_count} комбінацій...")
+        max_combinations_count = n_main_samples * (n_regressor_sets + 1)
+
+        self.lw.change_text(f"Прогрес: 0 / {max_combinations_count} комбінацій...")
         self.lw.top.update_idletasks()
 
         #send forecast to another tread
@@ -99,9 +128,10 @@ class BrutusGenerator:
             err = None
             result = None
             try:
-                for i in range(total_combinations_count):
+                index = 0
+                for variation in smart_param_generator(iteration_params, n_main_samples=n_main_samples, n_regressor_sets=n_regressor_sets):
                     # текст для оновлення
-                    text = f"Прогрес: {i+1} / {total_combinations_count} комбінацій..."
+                    text = f"Прогрес: {index+1} / {max_combinations_count} комбінацій..."
 
                     # безпечно просимо main-thread оновити лейбл
                     self.container.after(
@@ -109,7 +139,11 @@ class BrutusGenerator:
                         lambda t=text: self.lw.change_text(t)
                     )
 
-                    time.sleep(0.1)  # тут можна хоч важкі обчислення робити
+                    index += 1
+
+                    if(index == 1): print(variation)
+
+                    #time.sleep(0.1)  # тут можна хоч важкі обчислення робити
 
             except Exception as e:
                 err = e
@@ -130,10 +164,6 @@ class BrutusGenerator:
 
     def get_variations_in_range(self, min_val, max_val, step=None, max_steps=None):
         result = [min_val]
-
-        decimal_digits = 0
-
-        print([min_val, max_val])
 
         if min_val == 0:
             min_val = 1.0
