@@ -125,7 +125,7 @@ class BrutusDialog:
 
         # Навчання від–до
         self._subheader(r, "Межі навчання від - до (роки)", col=0, colspan=2); r += 1
-        self.train_from_year = tk.StringVar(value="2000")
+        self.train_from_year = tk.StringVar(value="2003")
         self.train_to_year = tk.StringVar(value="2005")
         ttk.Entry(self.form, textvariable=self.train_from_year)\
             .grid(row=r, column=0, columnspan=2, sticky="ew", padx=PADX, pady=(0,8))

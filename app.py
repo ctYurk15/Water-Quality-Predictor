@@ -28,7 +28,7 @@ APP_W, APP_H = 1280, 720
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("ІС — Часові ряди / Моделі")
+        self.title("ІС — передбачення забруднення водних ресурсів")
         self.geometry(f"{APP_W}x{APP_H}")
         self.minsize(960, 540)
         self.configure(bg=BG_MAIN)
@@ -280,7 +280,7 @@ class App(tk.Tk):
                             regressor_standardize=regressor_standardize_val,
                             regressor_mode=modal_meta['regressor_mode'],                 # or "additive" explicitly
                             smooth_regressors=smooth_regressors,
-                            smooth_window=float(modal_meta['smooth_window']),                     # try 14 for extra smoothness
+                            smooth_window=int(modal_meta['smooth_window']),                     # try 14 for extra smoothness
                             changepoint_prior_scale=float(modal_meta['changepoint_prior_scale']),        # try 0.02–0.1
                             seasonality_prior_scale=float(modal_meta['seasonality_prior_scale']),
                             regressor_global_importance=float(modal_meta['regressor_global_importance']),

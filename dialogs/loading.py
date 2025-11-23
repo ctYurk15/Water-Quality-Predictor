@@ -15,7 +15,7 @@ class LoadingWindow:
         self.top.transient(master); self.top.grab_set()
         self.top.configure(bg=BLUE_BG); self.top.resizable(False, False)
 
-        w, h = 250, 70
+        w, h = 300, 70
         x = master.winfo_x() + (master.winfo_width() - w) // 2
         y = master.winfo_y() + (master.winfo_height() - h) // 2
         self.top.geometry(f"{w}x{h}+{x}+{y}")

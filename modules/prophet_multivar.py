@@ -44,6 +44,7 @@ from modules.prophet_module import (
 
 # -------------------------- internal helpers --------------------------
 
+
 def _prepare_param_series(
     timeseries_dir: Path | str,
     param: str,
@@ -102,6 +103,7 @@ def _forecast_regressors_future(
     """
     Return dense future for regressors on [fcst_start..fcst_end] with columns ['ds'] + regs.
     Ensures no NaNs (ffill/bfill).
+    Regressors that have no data in the training window are silently skipped.
     """
     future_index = pd.date_range(start=fcst_start, end=fcst_end, freq=freq)
     out = pd.DataFrame({"ds": future_index}).set_index("ds")
@@ -119,7 +121,9 @@ def _forecast_regressors_future(
             rename_y_to="y",
         )
         if ser_r.empty:
-            raise ValueError(f"Regressor '{r}' has no data in the training window after filtering.")
+            # Skip this regressor if it has no history in the window
+            continue
+
         hist = ser_r.sort_values("ds").set_index("ds")["y"]
 
         if strategy == "last":
@@ -171,9 +175,8 @@ def _forecast_regressors_future(
     return out.reset_index().rename(columns={"index": "ds"})
 
 
-
-
 # --------------------------- public API --------------------------------
+
 
 def forecast_with_regressors(
     timeseries_dir: str | Path,
@@ -232,6 +235,8 @@ def forecast_with_regressors(
       - predictions on OUTPUT grid (freq)
       - accuracy computed on MODEL grid (more meaningful)
       - daily actuals for plotting
+
+    Regressors that have no data in the specified train window are ignored.
     """
     ts_dir = Path(timeseries_dir)
     out_dir = (Path(base_output_dir) / forecast_name).resolve()
@@ -259,15 +264,21 @@ def forecast_with_regressors(
     if target_train.empty:
         raise ValueError("Target has no data after applying station/date filters.")
 
-    reg_frames = []
+    reg_frames: List[pd.DataFrame] = []
+    effective_regressors: List[str] = []
+
     for r in regressors:
         ser_r = _prepare_param_series(
             ts_dir, r, station_code, station_id, mod_freq, agg, train_start, train_end, rename_y_to=r
         )
         if ser_r.empty:
-            raise ValueError(f"Regressor '{r}' has no data after applying station/date filters.")
-        reg_frames.append(ser_r)
+            # Ignore this regressor if it has no data in the training window
+            continue
 
+        reg_frames.append(ser_r)
+        effective_regressors.append(r)
+
+    # merge target + available regressors
     train_df = _merge_on_ds([target_train] + reg_frames)
     if train_df.empty or len(train_df) < 10:
         raise ValueError("Insufficient overlapping data between target and regressors after alignment.")
@@ -279,9 +290,9 @@ def forecast_with_regressors(
         train_df["floor"] = floor_val
 
     # optional smoothing (history)
-    if smooth_regressors and smooth_window > 1:
+    if smooth_regressors and smooth_window > 1 and effective_regressors:
         train_df = train_df.sort_values("ds")
-        for r in regressors:
+        for r in effective_regressors:
             train_df[r] = train_df[r].rolling(window=smooth_window, min_periods=1).mean()
 
     # ---- 2) forecast window on MODEL grid ----
@@ -306,7 +317,7 @@ def forecast_with_regressors(
     )
 
     reg_imp = regressor_importance or {}
-    for r in regressors:
+    for r in effective_regressors:
         eff_ps = regressor_prior_scale * regressor_global_importance * float(reg_imp.get(r, 1.0))
         if eff_ps <= 0:
             eff_ps = 1e-6
@@ -329,14 +340,14 @@ def forecast_with_regressors(
     future = future.merge(train_df.drop(columns=drop_cols), on="ds", how="left")
 
     # forecast FUTURE regressors on MODEL grid
-    if periods and periods > 0:
+    if periods and periods > 0 and effective_regressors:
         if s is None:
             s = _align_next_step(last_hist, mod_freq)
         if e is None:
             e = pd.date_range(start=s, periods=periods, freq=mod_freq)[-1]
 
         reg_future = _forecast_regressors_future(
-            timeseries_dir=ts_dir, regs=regressors,
+            timeseries_dir=ts_dir, regs=effective_regressors,
             station_code=station_code, station_id=station_id,
             freq=mod_freq, agg=agg,
             train_start=train_start, train_end=train_end,
@@ -348,7 +359,7 @@ def forecast_with_regressors(
             prophet_disable_seasonality=regressor_future_prophet_disable_seasonality,
         )
         future = future.merge(reg_future, on="ds", how="left", suffixes=("", "_fcst"))
-        for r in regressors:
+        for r in effective_regressors:
             if r in future.columns and f"{r}_fcst" in future.columns:
                 future[r] = future[r].combine_first(future[f"{r}_fcst"])
         future = future.drop(columns=[c for c in future.columns if c.endswith("_fcst")])
@@ -361,20 +372,20 @@ def forecast_with_regressors(
             future["floor"] = floor_val
 
     # optional smoothing (future)
-    if smooth_regressors and smooth_window > 1:
+    if smooth_regressors and smooth_window > 1 and effective_regressors:
         future = future.sort_values("ds")
-        for r in regressors:
+        for r in effective_regressors:
             future[r] = future[r].rolling(window=smooth_window, min_periods=1).mean()
 
     # NaN guard
-    nan_cols = [r for r in regressors if r not in future.columns or future[r].isna().any()]
+    nan_cols = [r for r in effective_regressors if r not in future.columns or future[r].isna().any()]
     if nan_cols:
         for r in nan_cols:
             if r in future.columns:
                 future[r] = future[r].ffill().bfill()
-        nan_cols = [r for r in regressors if r not in future.columns or future[r].isna().any()]
+        nan_cols = [r for r in effective_regressors if r not in future.columns or future[r].isna().any()]
         if nan_cols:
-            bad = future[["ds"] + [r for r in regressors if r in future.columns]]
+            bad = future[["ds"] + [r for r in effective_regressors if r in future.columns]]
             bad = bad[bad.isna().any(axis=1)]
             raise ValueError(
                 "Found NaN in regressors {} at rows:\n{}\n"
@@ -410,7 +421,7 @@ def forecast_with_regressors(
     # ---- 7) save csv + data.json (metrics on MODEL grid; daily actuals for plots) ----
     if write_to_disk:
         # CSV (on OUTPUT grid)
-        tag = "with_" + "+".join(regressors) if regressors else "univariate"
+        tag = "with_" + "+".join(effective_regressors) if effective_regressors else "univariate"
         (out_dir / f"{target}__{tag}.csv").write_text(result_out.to_csv(index=False), encoding="utf-8")
 
         # actuals aligned to OUTPUT window (for plots)
@@ -441,7 +452,7 @@ def forecast_with_regressors(
         blob["items"].append({
             "kind": "multivariate",
             "target": target,
-            "regressors": regressors,
+            "regressors": effective_regressors,
             "forecast_name": forecast_name,
             "timeseries_dir": str(ts_dir),
             "station_code": station_code,
@@ -495,8 +506,6 @@ def forecast_with_regressors(
     return result_out
 
 
-
-
 # Append to data.json
 def _append_run_item_json(out_dir: Path, item: dict) -> Path:
     data_path = out_dir / "data.json"
@@ -512,6 +521,7 @@ def _append_run_item_json(out_dir: Path, item: dict) -> Path:
     blob["items"].append(item)
     data_path.write_text(json.dumps(blob, ensure_ascii=False, indent=2), encoding="utf-8")
     return data_path
+
 
 def _build_daily_actuals(
     df: pd.DataFrame,
@@ -551,6 +561,7 @@ def _build_daily_actuals(
         daily["y"] = daily["y"].ffill(limit=fill_limit).bfill(limit=fill_limit)
 
     return daily.reset_index().rename(columns={"index": "ds"})
+
 
 def _compute_accuracy_within_tolerance(
     pred: pd.DataFrame,
