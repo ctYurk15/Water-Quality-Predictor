@@ -7,7 +7,7 @@ class LoadingWindow:
     Модалка завантаження:
         loading_text - текст, що показувати під час завантаження
     """
-    def __init__(self, master, loading_text):
+    def __init__(self, master, loading_text, width=300, height=70):
         self.master = master
 
         self.top = tk.Toplevel(master)
@@ -15,10 +15,10 @@ class LoadingWindow:
         self.top.transient(master); self.top.grab_set()
         self.top.configure(bg=BLUE_BG); self.top.resizable(False, False)
 
-        w, h = 300, 70
-        x = master.winfo_x() + (master.winfo_width() - w) // 2
-        y = master.winfo_y() + (master.winfo_height() - h) // 2
-        self.top.geometry(f"{w}x{h}+{x}+{y}")
+        #w, h = 300, 70
+        x = master.winfo_x() + (master.winfo_width() - width) // 2
+        y = master.winfo_y() + (master.winfo_height() - height) // 2
+        self.top.geometry(f"{width}x{height}+{x}+{y}")
 
         self.text_container = tk.Label(self.top, text=loading_text, bg=BLUE_BG)
         self.text_container.grid(row=0, column=0, sticky="w", padx=8, pady=8)

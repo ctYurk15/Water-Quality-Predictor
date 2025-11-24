@@ -280,14 +280,14 @@ class App(tk.Tk):
                             regressor_standardize=regressor_standardize_val,
                             regressor_mode=modal_meta['regressor_mode'],                 # or "additive" explicitly
                             smooth_regressors=smooth_regressors,
-                            smooth_window=int(modal_meta['smooth_window']),                     # try 14 for extra smoothness
+                            smooth_window=int(float(modal_meta['smooth_window'])),                     # try 14 for extra smoothness
                             changepoint_prior_scale=float(modal_meta['changepoint_prior_scale']),        # try 0.02–0.1
                             seasonality_prior_scale=float(modal_meta['seasonality_prior_scale']),
                             regressor_global_importance=float(modal_meta['regressor_global_importance']),
                             regressor_importance = regressors,
                             #regressor_future_ma_window=60,      # try 30–60 for daily data
                             regressor_future_strategy="linear",
-                            regressor_future_linear_window=120
+                            regressor_future_linear_window=int(float(modal_meta['regressor_future_linear_window']))
                         )
 
                     except Exception as e:
@@ -299,6 +299,7 @@ class App(tk.Tk):
                             except Exception:
                                 pass
                             if err:
+                                raise err
                                 messagebox.showerror("Помилка", str(err), parent=self)
                             else:
                                 messagebox.showinfo("Готово", f"Передбачення для '{modal_meta['parameter']}' створено.", parent=self)
@@ -416,12 +417,20 @@ class App(tk.Tk):
         timeseries = Timeseries.getEntries(True, True)
         params = Timeseries.getParams()
 
+        def on_save(leaderboard):
+            for key, leader in leaderboard.items():
+                model_name = leader['meta']['name']+'-run-'+str(key+1)
+                leader['meta']['name'] = model_name
+                self.models_view.add_row(model_name, meta=leader['meta'])
+                self._save_state()
+
         BrutusDialog(
             self,
             timeseries_options=timeseries,
             parameter_options=params,
             regressor_options=params,
-            models_view=self.models_view
+            models_view=self.models_view,
+            on_save=on_save 
         )
 
 if __name__ == "__main__":

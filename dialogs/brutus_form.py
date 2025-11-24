@@ -16,8 +16,10 @@ class BrutusDialog:
                  timeseries_options=None,
                  parameter_options=None,
                  regressor_options=None,
-                 models_view=None):
+                 models_view=None,
+                 on_save=None):
         self.master = master
+        self.on_save = on_save
 
         self.models_view = models_view
 
@@ -60,8 +62,8 @@ class BrutusDialog:
         r = 0
 
         self._subheader(1, "Вкажіть налаштування параметрів і межі для перебору.", col=0, colspan=4)
-        self._subheader(2, "В кінці створиться одна модель з оптимальними налаштуваннями,", col=0, colspan=4)
-        self._subheader(3, "що показала найкращий результат.", col=0, colspan=4)
+        self._subheader(2, "В кінці створиться 10 моделей з оптимальними налаштуваннями,", col=0, colspan=4)
+        self._subheader(3, "що показали найкращий результат.", col=0, colspan=4)
         self._subheader(4, "", col=0, colspan=4)
 
         r = 5
@@ -69,7 +71,7 @@ class BrutusDialog:
         #----- Цільові параметри
 
         # Назва
-        self._subheader(r, "Назва моделі", col=0, colspan=4)
+        self._subheader(r, "Префікс назви моделей", col=0, colspan=4)
         r += 1
         self.name_var = tk.StringVar(value='')
         ttk.Entry(self.form, textvariable=self.name_var)\
@@ -248,9 +250,9 @@ class BrutusDialog:
         if not name:
             messagebox.showwarning("Перевірка", "Вкажіть назву моделі.")
             return
-        existing_model = self.models_view.find_model_by_name(name)
+        existing_model = self.models_view.find_model_like_name(name)
         if existing_model != {}:
-            messagebox.showwarning("Перевірка", "Така назва вже існує")
+            messagebox.showwarning("Перевірка", "Модель/моделі з таким префіксом уже існують")
             return
 
         # required params
@@ -418,7 +420,7 @@ class BrutusDialog:
     def start_process(self, payload):
         #print(payload)
 
-        generator = BrutusGenerator(self.master, payload)
+        generator = BrutusGenerator(self.master, payload, self.on_save)
         generator.start()
 
     def _make_scroll_list(self, parent, *, row, column, columnspan=2, height=6, padx=8, pady=(0,8)):

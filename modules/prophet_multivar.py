@@ -421,8 +421,8 @@ def forecast_with_regressors(
     # ---- 7) save csv + data.json (metrics on MODEL grid; daily actuals for plots) ----
     if write_to_disk:
         # CSV (on OUTPUT grid)
-        tag = "with_" + "+".join(effective_regressors) if effective_regressors else "univariate"
-        (out_dir / f"{target}__{tag}.csv").write_text(result_out.to_csv(index=False), encoding="utf-8")
+        #tag = "with_" + "+".join(effective_regressors) if effective_regressors else "univariate"
+        #(out_dir / f"{target}__{tag}.csv").write_text(result_out.to_csv(index=False), encoding="utf-8")
 
         # actuals aligned to OUTPUT window (for plots)
         x_min, x_max = pd.to_datetime(result_out["ds"].min()), pd.to_datetime(result_out["ds"].max())

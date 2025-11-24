@@ -18,10 +18,11 @@ class BrutusGenerator:
     """
     Генератор найкращих налаштувань моделі шляхом перебору
     """
-    def __init__(self, container, payload):
+    def __init__(self, container, payload, on_save):
         self.container = container
         self.payload = payload
-        self.lw = LoadingWindow(self.container, loading_text=f"Підготовка комбінацій...")
+        self.on_save = on_save
+        self.lw = LoadingWindow(self.container, loading_text=f"Підготовка комбінацій...", width=300, height=300)
     
     def start(self):
 
@@ -141,14 +142,14 @@ class BrutusGenerator:
             err = None
             result = None
             try:
-                index = 0
-                current_leader = ""
-                current_max_accuracy = 0
+                variation_index = 0
+                leaderboard = {}
+                max_leaders = 10
                 for variation in smart_param_generator(iteration_params, n_main_samples=n_main_samples, n_regressor_sets=n_regressor_sets):
                     # текст для оновлення
-                    text = f"Прогрес: {index+1} / {max_combinations_count} комбінацій...\n"
-                    if current_leader  != "":
-                        text += f"Теперішній лідер - {current_leader} ( {current_max_accuracy} %)"
+                    text = f"Прогрес: {variation_index+1} / {max_combinations_count} комбінацій...\nЛідери:\n"
+                    for indx, position in leaderboard.items():
+                        text += f"№{indx+1} - {position['name']}( {position['accuracy']} %)\n"
 
                     # безпечно просимо main-thread оновити лейбл
                     self.container.after(
@@ -158,8 +159,11 @@ class BrutusGenerator:
 
                     #print(variation)
 
+                    variation['train_start'] = str(int(variation['train_year']))+'-01-01'
+                    variation['train_end'] = str(target_params['train_year_max'])+'-12-31'
+
                     accuracy = 0.01
-                    execution_name = 'run-'+str(index)
+                    execution_name = 'run-'+str(variation_index)
                     execution_folder = executions_folder+'/' + execution_name
                     forecast_with_regressors(
                         timeseries_dir=Timeseries.fullPath(target_params['timeseries']),
@@ -172,8 +176,8 @@ class BrutusGenerator:
                         growth="linear",
                         model_freq=target_params['model_freq'],
 
-                        train_start=str(int(variation['train_year']))+'-01-01', 
-                        train_end=str(target_params['train_year_max'])+'-12-31',
+                        train_start=variation['train_start'], 
+                        train_end=variation['train_end'],
 
                         fcst_start=target_params['target_forecast_from'], 
                         fcst_end=target_params['target_forecast_to'],
@@ -198,12 +202,58 @@ class BrutusGenerator:
                         regressor_future_linear_window=variation['regressor_future_linear_window']
                     )
                     
+                    #creating leaderboard
                     result_accuracy = Forecast.getAccuracy(execution_folder)
-                    if result_accuracy > current_max_accuracy:
-                        current_leader = execution_name
-                        current_max_accuracy = result_accuracy
 
-                    index += 1
+                    #check if position can be in leaderboard
+                    current_leaders_count = len(leaderboard)
+
+                    can_be_in_leaderboard = False
+                    leader_index = 0
+                    
+                    #fresh list
+                    if current_leaders_count == 0: 
+                        can_be_in_leaderboard = True
+                        leader_index = 0
+                    else:
+                        #check with other leaders
+                        for lb_index, position in leaderboard.items():
+                            if result_accuracy > position['accuracy']:
+                                can_be_in_leaderboard = True
+                                leader_index = lb_index
+                                break
+                        #if there is still a place for new item
+                        if can_be_in_leaderboard == False and len(leaderboard) < max_leaders:
+                            can_be_in_leaderboard = True
+                            leader_index = current_leaders_count
+
+                    if can_be_in_leaderboard == True:
+                        new_item = {
+                            'name': execution_name,
+                            'accuracy': result_accuracy,
+                            'meta': self.fill_model_meta({**target_params, **variation})
+                        }
+
+                        if current_leaders_count == 0: leaderboard[0] = new_item
+                        else:
+                            new_leaderboard = {}
+
+                            for i in range(max_leaders):
+                                if i < leader_index:
+                                    new_leaderboard[i] = leaderboard[i]
+                                elif i == leader_index:
+                                    new_leaderboard[i] = new_item
+                                elif i > leader_index and (i-1) in leaderboard:
+                                    new_leaderboard[i] = leaderboard[i-1]
+
+                            leaderboard = new_leaderboard
+                        
+                    #print('leaders ('+str(variation_index)+'):')
+                    #print(leaderboard)
+                            #text += f"№{index+1} - {position['name']}( {position['accuracy']} %)"
+
+                    variation_index += 1
+                    #break
                     #print("\n")
 
                     #time.sleep(0.1)  # тут можна хоч важкі обчислення робити
@@ -219,7 +269,9 @@ class BrutusGenerator:
                     if err:
                         messagebox.showerror("Помилка", str(err), parent=self.container)
                     else:
-                        messagebox.showinfo("Готово", f"Модель створено.", parent=self.container)
+                        messagebox.showinfo("Готово", f"Моделі {target_params['name']}-run-(1-10) створено.", parent=self.container)
+                        self.on_save(leaderboard)
+                        Forecast.deleteItem(executions_folder)
 
                 self.container.after(0, finish)
 
@@ -263,3 +315,30 @@ class BrutusGenerator:
         while int(number) != number:
             number *= 10
         return number
+
+    def fill_model_meta(self, data):
+        meta = {
+            "name": data['name'],
+            "timeseries": data['timeseries'],
+            "parameter": data['parameter'],
+            "train_from": data['train_start'],
+            "train_to": data['train_end'],
+            "min_value": data['min_value'],
+            "max_value": data['max_value'],
+            "result_freq": data['result_freq'],
+            "model_freq": data['model_freq'],
+            "regressors": list(data['regressors'].keys()),
+            "weights": data['regressors'],
+            "regressor_prior_scale": data['regressor_prior_scale'],
+            "regressor_standardize": data['regressor_standardize'],
+            "regressor_mode": data['regressor_mode'],
+            "smooth_regressors": data['smooth_regressors'],
+            "regressor_future_linear_window": data['regressor_future_linear_window'],
+            "smooth_window": data['smooth_window'],
+            "changepoint_prior_scale": data['changepoint_prior_scale'],
+            "seasonality_prior_scale": data['seasonality_prior_scale'],
+            "regressor_global_importance": data['regressor_global_importance'],
+            "created_at": datetime.now().strftime("%d.%m.%Y %H:%M")
+        }
+
+        return meta

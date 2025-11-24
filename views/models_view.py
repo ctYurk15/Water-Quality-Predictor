@@ -138,6 +138,16 @@ class ModelsView(ttk.Frame):
 
         return result
 
+    def find_model_like_name(self, search_name):
+        result = {}
+
+        for it in list(self.rows):
+            if search_name in it.get("name"):
+                result = it
+                break
+
+        return result
+
 
     # ---- internals ----
     def _remove_row(self, row_widget):
