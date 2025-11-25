@@ -124,5 +124,9 @@ match action:
     case 3:
         forecast_name = input("Forecast name: ").strip()
         #paths = render_from_json(forecast_name, target="Azot")
-        paths = render_from_json(forecast_name)
+        paths = render_from_json(
+            forecast_name=forecast_name,
+            real_data_color='#0000FF',
+            forecast_color='#FF0000'
+        )
         print(paths)

@@ -122,9 +122,11 @@ class BrutusGenerator:
     def iterate_variants(self, target_params, iteration_params):
 
         #n_main_samples = 2000
-        n_main_samples = 10
         #n_regressor_sets = 30
-        n_regressor_sets = 2
+        #n_main_samples = 10
+        #n_regressor_sets = 2
+        n_main_samples = 840
+        n_regressor_sets = 11
 
         max_combinations_count = n_main_samples * (n_regressor_sets + 1)
 
@@ -271,7 +273,7 @@ class BrutusGenerator:
                     else:
                         messagebox.showinfo("Готово", f"Моделі {target_params['name']}-run-(1-10) створено.", parent=self.container)
                         self.on_save(leaderboard)
-                        Forecast.deleteItem(executions_folder)
+                        #Forecast.deleteItem(executions_folder)
 
                 self.container.after(0, finish)
 

@@ -267,6 +267,7 @@ def forecast_with_regressors(
     reg_frames: List[pd.DataFrame] = []
     effective_regressors: List[str] = []
 
+    '''
     for r in regressors:
         ser_r = _prepare_param_series(
             ts_dir, r, station_code, station_id, mod_freq, agg, train_start, train_end, rename_y_to=r
@@ -282,6 +283,38 @@ def forecast_with_regressors(
     train_df = _merge_on_ds([target_train] + reg_frames)
     if train_df.empty or len(train_df) < 10:
         raise ValueError("Insufficient overlapping data between target and regressors after alignment.")
+    '''
+    # ---- SMART REGRESSOR MERGING (improved handling of sparse regressors) ----
+
+    MIN_POINTS = 1  # <- дозволяємо навіть 1 точку, якщо потрібно
+    effective_regressors: List[str] = []
+    train_df = target_train.copy()     # починаємо тільки з таргету
+
+    for r in regressors:
+        ser_r = _prepare_param_series(
+            ts_dir, r, station_code, station_id,
+            mod_freq, agg, train_start, train_end,
+            rename_y_to=r
+        )
+
+        # 1. Якщо даних взагалі немає → пропускаємо
+        if ser_r.empty:
+            continue
+
+        # 2. Пробуємо додати регресор
+        candidate = _merge_on_ds([train_df, ser_r])
+
+        # 3. Якщо додавання цього регресора занадто «ріже» дані → відкидаємо регресор
+        if len(candidate) < MIN_POINTS:
+            continue
+
+        # 4. Інакше приймаємо регресор
+        train_df = candidate
+        effective_regressors.append(r)
+
+    # Якщо навіть з таргетом < MIN_POINTS — повертаємо None (порожній прогноз)
+    if train_df.empty or len(train_df) < MIN_POINTS:
+        return None
 
     # bounds for logistic
     if use_bounds:
