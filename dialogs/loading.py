@@ -3,10 +3,7 @@ from datetime import datetime
 from theme import BLUE_BG, BG_MAIN, RED_BG
 
 class LoadingWindow:
-    """
-    Модалка завантаження:
-        loading_text - текст, що показувати під час завантаження
-    """
+
     def __init__(self, master, loading_text, width=300, height=70):
         self.master = master
 

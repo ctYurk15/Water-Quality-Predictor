@@ -10,7 +10,6 @@ def trigger_file_download(file_path, container):
         messagebox.showerror("Помилка", f"Файл не знайдено:\n{src}", parent=self)
         return
 
-    # діалог "Зберегти як…"
     dst_path = filedialog.asksaveasfilename(
         parent=container,
         title="Зберегти файл як…",
@@ -20,21 +19,21 @@ def trigger_file_download(file_path, container):
         filetypes=[("Усі файли", "*.*")],
         confirmoverwrite=False,
     )
+    #cancelled
     if not dst_path:
-        return  # користувач скасував
+        return
 
     dst = Path(dst_path)
     if dst.exists():
         if not messagebox.askyesno("Підтвердіть перезапис", f"Файл уже існує:\n{dst}\nПерезаписати?", parent=container):
             return
 
-    # копіюємо у фоні, щоб не блокувати GUI
 
     def worker():
         err = None
         try:
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(src, dst)  # копіює з метаданими
+            shutil.copy(src, dst) 
         except Exception as e:
             err = e
         finally:
