@@ -74,9 +74,11 @@ match action:
             #regressors=["Amoniy"],
             #regressors=["Amoniy", "Atrazin"],
             #regressors=["Amoniy", "Atrazin", "BSK5", "Fosfat", "Hlorid"],
+            #regressors=["BSK5", "HSK", "Fosfat", "Nitrat"],
             #regressors=["BSK5", "HSK", "Permanganat", "Amoniy", "Fosfat", "Nitrat"],
             #regressors=["BSK5", "HSK", "Permanganat", "Amoniy"],
-            regressors=["BSK5", "HSK"],
+            #regressors=["BSK5", "HSK"],
+            regressors=["Fosfat", "Nitrat"],
             #regressors=[],
             station_code=None,              # or "...", optional
             station_id=None,                # or "26853", optional
@@ -107,12 +109,12 @@ match action:
             # keep your other params (bounds, smoothing, priors) as you had
             #regressor_future_strategy="moving_average",
             regressor_importance = {
-                "BSK5": 2.0,
-                "HSK": 2.0,
+                #"BSK5": 2.0,
+                #"HSK": 2.0,
                 #"Permanganat": 1.5,
                 #"Amoniy": 1.2,
-                #"Fosfat": 1.0,
-                #"Nitrat": 0.8
+                "Fosfat": 1.0,
+                "Nitrat": 0.8
             },
             regressor_future_ma_window=60,      # try 30–60 for daily data
             regressor_future_strategy="linear",

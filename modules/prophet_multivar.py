@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import json
 import pandas as pd
+import numpy as np
 
 from prophet import Prophet
 
@@ -343,6 +344,13 @@ def forecast_with_regressors(
 
     # ---- 3) fit Prophet (regularized) on MODEL grid ----
     model_growth = "logistic" if use_bounds else growth
+
+    valid_rows = train_df.dropna(subset=["y"])
+
+    if len(valid_rows) < 2:
+        # фізично неможливо навчити Prophet
+        return None
+
     m = Prophet(
         growth=model_growth,
         changepoint_prior_scale=changepoint_prior_scale,
@@ -618,6 +626,41 @@ def _compute_accuracy_within_tolerance(
 
     df = pred[["ds", "yhat"]].merge(actuals_on_grid[["ds", "y"]], on="ds", how="inner")
     df = df.dropna(subset=["y"])
+
+    n_total = int(len(pred))
+    n_eval = int(len(df))
+    if n_eval == 0:
+        return {
+            "metric": f"within_{int(tolerance*100)}pct",
+            "accuracy": None,
+            "n_total": n_total,
+            "n_eval": 0,
+            "n_within": 0,
+        }
+
+    # - для |y| > eps: відносна (relative)
+    # - для |y| <= eps: абсолютна (absolute), щоб уникнути ділення на 0
+    eps = 1e-6
+    abs_err = (df["yhat"] - df["y"]).abs()
+    rel_err = abs_err / df["y"].abs().clip(lower=eps)
+
+    ape = np.where(df["y"].abs() > eps, rel_err, abs_err)
+
+    within = (ape <= tolerance)
+    n_within = int(within.sum())
+    acc = float(n_within / n_eval)
+
+    return {
+        "metric": f"within_{int(tolerance*100)}pct",
+        "accuracy": acc,
+        "n_total": n_total,
+        "n_eval": n_eval,
+        "n_within": n_within,
+    }
+
+    '''
+    df = pred[["ds", "yhat"]].merge(actuals_on_grid[["ds", "y"]], on="ds", how="inner")
+    df = df.dropna(subset=["y"])
     df = df[df["y"].abs() > 0]
 
     n_total = int(len(pred))
@@ -643,3 +686,4 @@ def _compute_accuracy_within_tolerance(
         "n_eval": n_eval,
         "n_within": n_within,
     }
+    '''

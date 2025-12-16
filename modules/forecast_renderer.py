@@ -234,9 +234,12 @@ def render_from_json(
             m = re.fullmatch(r"within_(\d+)pct", metric_key or "")
             tol = m.group(1) if m else "?"
             acc_pct = round(100.0 * float(metric_payload["accuracy"]), 1)
+
             n_eval = int(metric_payload.get("n_eval", 0))
-            n_total = int(metric_payload.get("n_total", 0))
-            acc_line = f"Acc@{tol}%: {acc_pct}% (n={n_eval}/{n_total})"
+            n_within = int(metric_payload.get("n_within", 0))
+
+            # Варіант 1: точність серед валідних (оцінених) точок
+            acc_line = f"Acc@{tol}%: {acc_pct}% (n={n_within}/{n_eval})"
         except Exception:
             acc_line = ""
 

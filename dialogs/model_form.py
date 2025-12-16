@@ -183,7 +183,7 @@ class AddOrEditModelDialog:
         r += 1
 
         # Other settings (2)
-        self._subheader(r, "Сила впливу сезонності (3 -> 15)", col=0, colspan=2)
+        self._subheader(r, "Сила впливу сезонності (0.1 -> 15)", col=0, colspan=2)
         self._subheader(r, "Множник важливості регресора (0.1 -> 5)", col=2, colspan=2)
         r += 1
         self.seasonality_prior_scale = tk.StringVar(value=(initial or {}).get("seasonality_prior_scale", 5))

@@ -205,56 +205,57 @@ class BrutusGenerator:
                     )
                     
                     #creating leaderboard
-                    result_accuracy = Forecast.getAccuracy(execution_folder)
+                    if os.path.isdir('forecasts/'+execution_folder):
+                        result_accuracy = Forecast.getAccuracy(execution_folder)
 
-                    #check if position can be in leaderboard
-                    current_leaders_count = len(leaderboard)
+                        #check if position can be in leaderboard
+                        current_leaders_count = len(leaderboard)
 
-                    can_be_in_leaderboard = False
-                    leader_index = 0
-                    
-                    #fresh list
-                    if current_leaders_count == 0: 
-                        can_be_in_leaderboard = True
+                        can_be_in_leaderboard = False
                         leader_index = 0
-                    else:
-                        #check with other leaders
-                        for lb_index, position in leaderboard.items():
-                            if result_accuracy > position['accuracy']:
-                                can_be_in_leaderboard = True
-                                leader_index = lb_index
-                                break
-                        #if there is still a place for new item
-                        if can_be_in_leaderboard == False and len(leaderboard) < max_leaders:
-                            can_be_in_leaderboard = True
-                            leader_index = current_leaders_count
-
-                    if can_be_in_leaderboard == True:
-                        new_item = {
-                            'name': execution_name,
-                            'accuracy': result_accuracy,
-                            'meta': self.fill_model_meta({**target_params, **variation})
-                        }
-
-                        if current_leaders_count == 0: leaderboard[0] = new_item
-                        else:
-                            new_leaderboard = {}
-
-                            for i in range(max_leaders):
-                                if i < leader_index:
-                                    new_leaderboard[i] = leaderboard[i]
-                                elif i == leader_index:
-                                    new_leaderboard[i] = new_item
-                                elif i > leader_index and (i-1) in leaderboard:
-                                    new_leaderboard[i] = leaderboard[i-1]
-
-                            leaderboard = new_leaderboard
                         
-                    #print('leaders ('+str(variation_index)+'):')
-                    #print(leaderboard)
-                            #text += f"№{index+1} - {position['name']}( {position['accuracy']} %)"
+                        #fresh list
+                        if current_leaders_count == 0: 
+                            can_be_in_leaderboard = True
+                            leader_index = 0
+                        else:
+                            #check with other leaders
+                            for lb_index, position in leaderboard.items():
+                                if result_accuracy > position['accuracy']:
+                                    can_be_in_leaderboard = True
+                                    leader_index = lb_index
+                                    break
+                            #if there is still a place for new item
+                            if can_be_in_leaderboard == False and len(leaderboard) < max_leaders:
+                                can_be_in_leaderboard = True
+                                leader_index = current_leaders_count
 
-                    variation_index += 1
+                        if can_be_in_leaderboard == True:
+                            new_item = {
+                                'name': execution_name,
+                                'accuracy': result_accuracy,
+                                'meta': self.fill_model_meta({**target_params, **variation})
+                            }
+
+                            if current_leaders_count == 0: leaderboard[0] = new_item
+                            else:
+                                new_leaderboard = {}
+
+                                for i in range(max_leaders):
+                                    if i < leader_index:
+                                        new_leaderboard[i] = leaderboard[i]
+                                    elif i == leader_index:
+                                        new_leaderboard[i] = new_item
+                                    elif i > leader_index and (i-1) in leaderboard:
+                                        new_leaderboard[i] = leaderboard[i-1]
+
+                                leaderboard = new_leaderboard
+                            
+                        #print('leaders ('+str(variation_index)+'):')
+                        #print(leaderboard)
+                                #text += f"№{index+1} - {position['name']}( {position['accuracy']} %)"
+
+                        variation_index += 1
                     #break
                     #print("\n")
 
